@@ -343,8 +343,7 @@ namespace SwellSSH.Terminal
             _charHeight = longLayout.LineSpacing;
             if (_charHeight <= 0) _charHeight = longLayout.LayoutBounds.Height;
             if (_charHeight <= 0) _charHeight = 16;
-            // Add 2px breathing room between lines.
-            _charHeight = Math.Ceiling(_charHeight + 2);
+            _charHeight = Math.Ceiling(_charHeight);
 
             if (Canvas.ActualWidth > 0 && Canvas.ActualHeight > 0)
             {

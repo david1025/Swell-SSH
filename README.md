@@ -65,37 +65,6 @@
 
 > **提示**：首次运行时 Windows 可能会弹出 SmartScreen 提示，点击「更多信息」→「仍要运行」即可。
 
----
-
-## 🛠️ 本地构建
-
-### 前置要求
-
-- [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Windows 10 / 11（WinUI 3 仅支持 Windows）
-- Visual Studio 2022（可选，用于 IDE 开发）
-
-### 克隆并运行
-
-```bash
-git clone https://github.com/yaog6700-bit/Swell-SSH.git
-cd Swell-SSH
-dotnet run
-```
-
-### 发布构建（单文件）
-
-```bash
-dotnet publish SwellSSH.csproj -c Release -r win-x64 ^
-  -p:SelfContained=true ^
-  -p:PublishSingleFile=true ^
-  -p:EnableCompressionInSingleFile=true ^
-  -p:PublishTrimmed=false ^
-  -p:PublishReadyToRun=false
-```
-
----
-
 ## ⌨️ 快捷键
 
 | 快捷键 | 功能 |

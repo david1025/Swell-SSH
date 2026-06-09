@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using SwellSSH.Models;
 using SwellSSH.Services;
@@ -38,7 +39,7 @@ namespace SwellSSH.Pages
             }
         }
 
-        /// <summary>显示给用户的连接地址，可能被遮罩</summary>
+        /// <summary>运行时展示给用户的展示内容，包括 IP 遮罩 + 监控统计。</summary>
         public string DisplayHostPort =>
             IsIpVisible
                 ? $"{Profile.Username}@{Profile.Host}:{Profile.Port}"
@@ -46,6 +47,43 @@ namespace SwellSSH.Pages
 
         /// <summary>眼睛图标 Segoe MDL2 字形：打开=E7B3，关闭=E7A8</summary>
         public string EyeGlyph => IsIpVisible ? "\uE7B3" : "\uE7A8";
+
+        // ── 监控统计 ─────────────────────────────────────────────────────
+        private string _statsText = "";
+        private bool _monitoringVisible;
+
+        public string StatsText
+        {
+            get => _statsText;
+            set { _statsText = value; OnPropertyChanged(); }
+        }
+
+        public Visibility IsMonitoringVisible =>
+            _monitoringVisible ? Visibility.Visible : Visibility.Collapsed;
+
+        public void ApplyStats(ServerStats s)
+        {
+            if (s.HasError)
+            {
+                StatsText = $"🔴 {s.ErrorMessage?.Split('\n')[0] ?? "监控失败"}".Substring(0, Math.Min(28, (s.ErrorMessage?.Length ?? 0) + 3));
+                _monitoringVisible = true;
+            }
+            else if (s.IsAvailable)
+            {
+                StatsText = $"CPU {s.CpuPercent,4:F0}%  RAM {s.RamPercent,4:F0}%  Disk {s.DiskPercent,3:F0}%";
+                _monitoringVisible = true;
+            }
+            else
+            {
+                // First poll (CPU needs two samples): show partial info
+                StatsText = s.RamPercent >= 0
+                    ? $"RAM {s.RamPercent,4:F0}%  Disk {s.DiskPercent,3:F0}%  …"
+                    : "正在获取监控数据…";
+                _monitoringVisible = true;
+            }
+            OnPropertyChanged(nameof(StatsText));
+            OnPropertyChanged(nameof(IsMonitoringVisible));
+        }
 
         public ConnectionItemViewModel(ConnectionProfile profile) => Profile = profile;
 
@@ -62,7 +100,10 @@ namespace SwellSSH.Pages
     public sealed partial class MainPage : Page
     {
         private readonly ConnectionStorage _storage = new();
+        private readonly KnownHostsService _knownHosts = new();
         public ObservableCollection<ConnectionItemViewModel> Connections { get; } = new();
+        // Map profileId → ViewModel for fast stats lookup
+        private readonly Dictionary<string, ConnectionItemViewModel> _vmById = new();
 
         public MainPage()
         {
@@ -70,16 +111,18 @@ namespace SwellSSH.Pages
             _ = LoadConnectionsAsync();
 
             if (MainWindow.Instance != null)
-            {
                 MainWindow.Instance.ThemeChanged += OnThemeChanged;
-            }
             TerminalSettings.GlobalSettingsChanged += OnGlobalSettingsChanged;
+
+            // Subscribe to monitoring stats updates
+            ServerMonitorService.Instance.StatsUpdated += OnStatsUpdated;
 
             this.Unloaded += (_, _) =>
             {
                 if (MainWindow.Instance != null)
                     MainWindow.Instance.ThemeChanged -= OnThemeChanged;
                 TerminalSettings.GlobalSettingsChanged -= OnGlobalSettingsChanged;
+                ServerMonitorService.Instance.StatsUpdated -= OnStatsUpdated;
             };
 
             SetupKeyboardShortcuts();
@@ -196,8 +239,13 @@ namespace SwellSSH.Pages
         {
             var profiles = await _storage.LoadConnectionsAsync();
             Connections.Clear();
+            _vmById.Clear();
             foreach (var p in profiles)
-                Connections.Add(new ConnectionItemViewModel(p));
+            {
+                var vm = new ConnectionItemViewModel(p);
+                Connections.Add(vm);
+                _vmById[p.Id] = vm;
+            }
 
             var groupedList = new ObservableCollection<GroupInfoList>();
             var realQuery = from item in Connections
@@ -213,9 +261,22 @@ namespace SwellSSH.Pages
             ConnectionsCVS.Source = groupedList;
             UpdateEmptyState();
 
-            // Sync theme menu checked state with persisted settings
+            // Sync settings theme menu
             var settings = await _storage.LoadSettingsAsync();
             SyncThemeMenuCheckedState(settings.ColorScheme);
+
+            // Start/stop background monitoring per profile
+            ServerMonitorService.Instance.Sync(profiles);
+        }
+
+        /// <summary>Called from ServerMonitorService on thread-pool; marshal to UI thread.</summary>
+        private void OnStatsUpdated(ServerStats stats)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_vmById.TryGetValue(stats.ConnectionId, out var vm))
+                    vm.ApplyStats(stats);
+            });
         }
 
         /// <summary>将 TabStripFooter 主题菜单的选中项与当前配色方案对齐。</summary>
@@ -282,6 +343,82 @@ namespace SwellSSH.Pages
         {
             if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
                 vm.IsIpVisible = !vm.IsIpVisible;
+        }
+
+        // ── Quick Connect ────────────────────────────────────────────────────────────────────
+
+        private void QuickConnectBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                DoQuickConnect();
+            }
+        }
+
+        private void QuickConnectButton_Click(object sender, RoutedEventArgs e) => DoQuickConnect();
+
+        private void DoQuickConnect()
+        {
+            var input = QuickConnectBox.Text.Trim();
+            if (string.IsNullOrEmpty(input)) return;
+
+            if (!TryParseQuickConnect(input, out var profile))
+            {
+                // Briefly highlight the box to signal bad input
+                QuickConnectBox.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                _ = Task.Delay(1500).ContinueWith(_ =>
+                    DispatcherQueue.TryEnqueue(() => QuickConnectBox.ClearValue(TextBox.BorderBrushProperty)));
+                return;
+            }
+
+            QuickConnectBox.Text = "";
+            OpenTerminalTab(profile);
+        }
+
+        /// <summary>解析 [user@]host[:port] 格式到临时 ConnectionProfile。</summary>
+        private static bool TryParseQuickConnect(string input, out ConnectionProfile profile)
+        {
+            profile = new ConnectionProfile { Name = input };
+
+            string user = "root";
+            string host = input;
+            int port = 22;
+
+            // user@...
+            if (host.Contains('@'))
+            {
+                int at = host.LastIndexOf('@');
+                user = host[..at];
+                host = host[(at + 1)..];
+            }
+
+            // [...]:port  (IPv6)
+            if (host.StartsWith('['))
+            {
+                int close = host.IndexOf(']');
+                if (close > 0)
+                {
+                    string ipv6 = host[1..close];
+                    string rest = host[(close + 1)..];
+                    if (rest.StartsWith(':') && int.TryParse(rest[1..], out int p6))
+                        port = p6;
+                    host = ipv6;
+                }
+            }
+            else if (host.Count(c => c == ':') == 1)
+            {
+                var parts = host.Split(':');
+                if (int.TryParse(parts[1], out int p)) { port = p; host = parts[0]; }
+            }
+
+            if (!IsValidHost(host)) return false;
+
+            profile.Username = string.IsNullOrEmpty(user) ? "root" : user;
+            profile.Host     = host;
+            profile.Port     = port;
+            profile.Name     = $"{user}@{host}:{port}";
+            return true;
         }
 
         private async void EditMenu_Click(object sender, RoutedEventArgs e)
@@ -399,8 +536,8 @@ namespace SwellSSH.Pages
             var tab = new TabViewItem
             {
                 Header = profile.Name,
-                IconSource = new FontIconSource 
-                { 
+                IconSource = new FontIconSource
+                {
                     Glyph = "\uE895", // Sync
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Orange)
                 },
@@ -409,19 +546,19 @@ namespace SwellSSH.Pages
 
             // ── Tab Context Menu ────────────────────────────────────────────────
             var flyout = new MenuFlyout();
-            
+
             var closeItem = new MenuFlyoutItem { Text = "关闭标签" };
             closeItem.Click += (_, _) => CloseTab(tab);
-            
+
             var closeOthersItem = new MenuFlyoutItem { Text = "关闭其他标签" };
-            closeOthersItem.Click += (_, _) => 
+            closeOthersItem.Click += (_, _) =>
             {
                 var tabsToRemove = TerminalTabView.TabItems.Cast<TabViewItem>().Where(t => t != tab).ToList();
                 foreach (var t in tabsToRemove) CloseTab(t);
             };
 
             var closeRightItem = new MenuFlyoutItem { Text = "关闭右侧标签" };
-            closeRightItem.Click += (_, _) => 
+            closeRightItem.Click += (_, _) =>
             {
                 int index = TerminalTabView.TabItems.IndexOf(tab);
                 var tabsToRemove = TerminalTabView.TabItems.Cast<TabViewItem>().Skip(index + 1).ToList();
@@ -437,6 +574,15 @@ namespace SwellSSH.Pages
             var session = new TerminalSession(profile);
             tab.Tag = session;  // so TabCloseRequested can dispose it
 
+            // ── Host Key Verification ───────────────────────────────────────────
+            session.Transport.HostKeyVerifier = async (host, port, algorithm, fingerprint) =>
+            {
+                var trusted = _knownHosts.Check(host, port, algorithm, fingerprint);
+                if (trusted == true)  return true;   // already known + unchanged
+                if (trusted == false) return await ShowChangedHostKeyDialogAsync(host, port, algorithm, fingerprint);
+                return await ShowNewHostKeyDialogAsync(host, port, algorithm, fingerprint);
+            };
+
             // Handle state changes
             session.StateChanged += (_, state) =>
             {
@@ -446,8 +592,8 @@ namespace SwellSSH.Pages
                     {
                         case TerminalSession.SessionState.Connected:
                             tab.Header = profile.Name;
-                            tab.IconSource = new FontIconSource 
-                            { 
+                            tab.IconSource = new FontIconSource
+                            {
                                 Glyph = "\uE8C8", // Terminal
                                 Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.LimeGreen)
                             };
@@ -464,8 +610,8 @@ namespace SwellSSH.Pages
 
                         case TerminalSession.SessionState.Error:
                             tab.Header = profile.Name;
-                            tab.IconSource = new FontIconSource 
-                            { 
+                            tab.IconSource = new FontIconSource
+                            {
                                 Glyph = "\uEA39", // Error
                                 Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red)
                             };
@@ -489,12 +635,79 @@ namespace SwellSSH.Pages
             TerminalTabView.TabItems.Add(tab);
             TerminalTabView.SelectedItem = tab;
             UpdateEmptyState();
+        }
 
-            // ConnectAsync is intentionally NOT called here.
-            // TerminalView.Canvas_CreateResources fires after the canvas is laid out
-            // and measures the real pixel size, so it will call session.ConnectAsync()
-            // with the correct cols/rows. This prevents the SSH welcome text from
-            // wrapping at a wrong column width.
+        // ── Host Key dialogs ─────────────────────────────────────────────────────────────────
+
+        private async Task<bool> ShowNewHostKeyDialogAsync(
+            string host, int port, string algorithm, string fingerprint)
+        {
+            var tcs = new TaskCompletionSource<bool>();
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    var dialog = new ContentDialog
+                    {
+                        XamlRoot = this.XamlRoot,
+                        Title = "🔑 未知主机",
+                        Content = new StackPanel { Spacing = 8, Children =
+                        {
+                            new TextBlock { Text = $"首次连接到 {host}:{port}，请确认主机指纹是否正确。", TextWrapping = TextWrapping.Wrap },
+                            new TextBlock { Text = $"算法：{algorithm}", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12 },
+                            new TextBlock { Text = fingerprint, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Opacity = 0.8 }
+                        }},
+                        PrimaryButtonText = "信任并连接",
+                        CloseButtonText   = "拒绝",
+                        DefaultButton     = ContentDialogButton.Primary
+                    };
+                    var result = await dialog.ShowAsync();
+                    bool ok = result == ContentDialogResult.Primary;
+                    if (ok) _knownHosts.Trust(host, port, algorithm, fingerprint);
+                    tcs.SetResult(ok);
+                }
+                catch (Exception ex) { tcs.SetException(ex); }
+            });
+            return await tcs.Task;
+        }
+
+        private async Task<bool> ShowChangedHostKeyDialogAsync(
+            string host, int port, string algorithm, string fingerprint)
+        {
+            var tcs = new TaskCompletionSource<bool>();
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                try
+                {
+                    var dialog = new ContentDialog
+                    {
+                        XamlRoot = this.XamlRoot,
+                        Title = "⚠️ 主机指纹已变更！",
+                        Content = new StackPanel { Spacing = 8, Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = $"{host}:{port} 的主机密钒与之前保存的不一致！\n" +
+                                       "这可能意味着副本攻击（MITM）或服务器密钒已更新。\n" +
+                                       "确认新指纹后才可信任。",
+                                TextWrapping = TextWrapping.Wrap,
+                                Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed)
+                            },
+                            new TextBlock { Text = $"新算法：{algorithm}", FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12 },
+                            new TextBlock { Text = fingerprint, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 11, TextWrapping = TextWrapping.Wrap, Opacity = 0.8 }
+                        }},
+                        PrimaryButtonText = "更新并信任",
+                        CloseButtonText   = "拒绝",
+                        DefaultButton     = ContentDialogButton.Close
+                    };
+                    var result = await dialog.ShowAsync();
+                    bool ok = result == ContentDialogResult.Primary;
+                    if (ok) _knownHosts.Trust(host, port, algorithm, fingerprint);
+                    tcs.SetResult(ok);
+                }
+                catch (Exception ex) { tcs.SetException(ex); }
+            });
+            return await tcs.Task;
         }
 
         // ── Connection edit dialog ────────────────────────────────────────────
@@ -552,6 +765,24 @@ namespace SwellSSH.Pages
                 SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact
             };
 
+            // ── 监控开关 ──────────────────────────────────────────────────────
+            var monitorSwitch = new ToggleSwitch
+            {
+                Header = "在连接列表开启性能监控",
+                IsOn = profile.EnableMonitoring
+            };
+            var monitorInterval = new NumberBox
+            {
+                Header = "监控间隔（秒）",
+                Value = profile.MonitorIntervalSeconds,
+                Minimum = 3,
+                Maximum = 60,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
+                Visibility = profile.EnableMonitoring ? Visibility.Visible : Visibility.Collapsed
+            };
+            monitorSwitch.Toggled += (_, _) =>
+                monitorInterval.Visibility = monitorSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
+
             // ── 内联错误提示 ───────────────────────────────────────────────────
             var errorLabel = new TextBlock
             {
@@ -571,6 +802,8 @@ namespace SwellSSH.Pages
             content.Children.Add(pwdBox);
             content.Children.Add(keyPathBox);
             content.Children.Add(keepAliveBox);
+            content.Children.Add(monitorSwitch);
+            content.Children.Add(monitorInterval);
             content.Children.Add(errorLabel);
 
             var dialog = new ContentDialog
@@ -622,6 +855,8 @@ namespace SwellSSH.Pages
             profile.Username = userBox.Text.Trim();
             profile.AuthType = authCombo.SelectedItem?.ToString() ?? "Password";
             profile.KeepAliveIntervalSeconds = double.IsNaN(keepAliveBox.Value) ? 0 : (int)keepAliveBox.Value;
+            profile.EnableMonitoring = monitorSwitch.IsOn;
+            profile.MonitorIntervalSeconds = double.IsNaN(monitorInterval.Value) ? 10 : Math.Max(3, (int)monitorInterval.Value);
 
             if (profile.AuthType == "Password" && !string.IsNullOrEmpty(currentPwd))
                 profile.EncryptedPassword = ConnectionStorage.EncryptSecret(currentPwd);

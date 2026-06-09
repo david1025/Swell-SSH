@@ -38,6 +38,12 @@ namespace SwellSSH.Models
         /// </summary>
         public int KeepAliveIntervalSeconds { get; set; } = 60;
 
+        /// <summary>Whether the sidebar monitoring widget is active for this server.</summary>
+        public bool EnableMonitoring { get; set; } = false;
+
+        /// <summary>How often (seconds) the monitoring service polls. Minimum 3 s.</summary>
+        public int MonitorIntervalSeconds { get; set; } = 10;
+
         public DateTime LastConnected { get; set; } = DateTime.MinValue;
     }
 }

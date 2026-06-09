@@ -33,6 +33,13 @@ namespace SwellSSH.Terminal
         public bool IsConnected => _client?.IsConnected == true && _shell != null;
         public ConnectionProfile? Profile { get; private set; }
 
+        /// <summary>
+        /// Optional async callback invoked before the SSH handshake completes.
+        /// Parameters: host, port, algorithm, hex-fingerprint.
+        /// Return true to trust, false to reject (throws SshConnectionException).
+        /// </summary>
+        public Func<string, int, string, string, Task<bool>>? HostKeyVerifier { get; set; }
+
         private SshClient? _client;
         private ShellStream? _shell;
         private CancellationTokenSource? _readCts;
@@ -54,6 +61,21 @@ namespace SwellSSH.Terminal
             await Task.Run(() =>
             {
                 _client = BuildClient(profile);
+
+                // ── Host Key Verification ─────────────────────────────────
+                if (HostKeyVerifier != null)
+                {
+                    var verifier = HostKeyVerifier;
+                    _client.HostKeyReceived += (_, e) =>
+                    {
+                        string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
+                        // Block this thread-pool thread while UI dialog is shown
+                        bool trusted = verifier(profile.Host, profile.Port, e.HostKeyName, fp)
+                            .GetAwaiter().GetResult();
+                        e.CanTrust = trusted;
+                    };
+                }
+
                 _client.Connect();
                 _client.ErrorOccurred += OnClientError;
 

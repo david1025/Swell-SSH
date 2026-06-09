@@ -22,19 +22,39 @@
         <Grid Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <!-- Quick connect bar -->
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Header -->
-            <Grid Grid.Row="0" Padding="16,12">
+            <Grid Grid.Row="0" Padding="16,12,16,8">
                 <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+            </Grid>
+
+            <!-- Quick connect bar -->
+            <Grid Grid.Row="1" Padding="8,0,8,8" ColumnSpacing="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="QuickConnectBox"
+                         PlaceholderText="快速连接 user@host:port"
+                         FontSize="12"
+                         KeyDown="QuickConnectBox_KeyDown"/>
+                <Button Grid.Column="1"
+                        Width="32" Height="32" Padding="0"
+                        ToolTipService.ToolTip="连接"
+                        Click="QuickConnectButton_Click">
+                    <FontIcon Glyph="&#xE768;" FontSize="13"/>
+                </Button>
             </Grid>
 
             <!-- Connection list -->
             <ListView
                 x:Name="ConnectionListView"
-                Grid.Row="1"
+                Grid.Row="2"
                 SelectionMode="Single"
                 DoubleTapped="ConnectionListView_DoubleTapped"
                 ItemsSource="{x:Bind ConnectionsCVS.View, Mode=OneWay}">
@@ -76,11 +96,18 @@
                             </Grid.ColumnDefinitions>
                             <FontIcon Grid.Column="0" Glyph="&#xE8C8;" FontSize="18"
                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                            <StackPanel Grid.Column="1">
+                            <StackPanel Grid.Column="1" Spacing="2">
                                 <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
                                 <TextBlock Text="{x:Bind DisplayHostPort, Mode=OneWay}"
                                            Style="{ThemeResource CaptionTextBlockStyle}"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <!-- Monitoring stats row -->
+                                <TextBlock Text="{x:Bind StatsText, Mode=OneWay}"
+                                           Visibility="{x:Bind IsMonitoringVisible, Mode=OneWay}"
+                                           FontSize="10"
+                                           Opacity="0.65"
+                                           FontFamily="Consolas"
+                                           Margin="0,1,0,0"/>
                             </StackPanel>
                             <!-- IP 遮罩切换按钮 -->
                             <Button Grid.Column="2"
@@ -98,7 +125,7 @@
             </ListView>
 
             <!-- Bottom toolbar -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8" Spacing="4">
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Padding="8" Spacing="4">
                 <Button x:Name="AddConnectionButton" Click="AddConnectionButton_Click"
                         ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="6">

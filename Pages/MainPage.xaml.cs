@@ -74,7 +74,7 @@ namespace SwellSSH.Pages
                 ? $"{Profile.Username}@{Profile.Host}:{Profile.Port}"
                 : $"{Profile.Username}@***.***.***.***:{Profile.Port}";
 
-        public string EyeGlyph => IsIpVisible ? "\uE7B3" : "\uE7A8";
+        public string EyeGlyph => IsIpVisible ? "\uE7B3" : "\uED1A";
 
         private string _statsText = "";
         private bool _monitoringVisible;

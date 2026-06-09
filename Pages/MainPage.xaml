@@ -126,6 +126,10 @@
                 DoubleTapped="ConnectionListView_DoubleTapped"
                 ItemsSource="{x:Bind FlatSidebarItems, Mode=OneWay}"
                 ItemTemplateSelector="{StaticResource SidebarTemplateSelector}">
+                <!-- Disable default add/remove stuttering animation -->
+                <ListView.ItemContainerTransitions>
+                    <TransitionCollection />
+                </ListView.ItemContainerTransitions>
                 <!-- Remove default item padding to let our margin trick work for indent -->
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">

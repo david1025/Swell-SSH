@@ -249,15 +249,13 @@ namespace SwellSSH.Terminal
                 _ansiColors = DarkStandardColors;
                 _selectionBg = Color.FromArgb(255, 38, 79, 120);
             }
-
-            // Apply BackgroundOpacity: let Mica/Acrylic show through
-            byte alpha = (byte)Math.Clamp((int)(settings.BackgroundOpacity * 255), 0, 255);
-            _defaultBg = Color.FromArgb(alpha, _defaultBg.R, _defaultBg.G, _defaultBg.B);
-            
+            // _defaultBg stays fully opaque — used only for cursor inversion & color math.
+            // The canvas itself is kept transparent so the window's Mica/Acrylic backdrop
+            // shows through terminal empty cells, making the terminal blend with the UI.
             if (Canvas != null && Canvas.ReadyToDraw)
             {
-                Canvas.ClearColor = _defaultBg;
-                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_defaultBg);
+                Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
+                RootGrid.Background = null; // transparent — let Mica show through
                 UpdateFont();
             }
             
@@ -331,11 +329,10 @@ namespace SwellSSH.Terminal
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
-            // Re-apply opacity in case UpdateFont is called directly
-            byte bgAlpha = (byte)Math.Clamp((int)((_settings?.BackgroundOpacity ?? 0.95) * 255), 0, 255);
-            var bgWithOpacity = Color.FromArgb(bgAlpha, _defaultBg.R, _defaultBg.G, _defaultBg.B);
-            Canvas.ClearColor = bgWithOpacity;
-            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgWithOpacity);
+            // Keep canvas transparent so the Mica/Acrylic backdrop shows through.
+            // _defaultBg is used only as a reference for cursor/text rendering, not as fill.
+            Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
+            RootGrid.Background = null;
 
             // Use a 20-char string to average out any left/right layout padding.
             // This gives the most accurate per-character advance width for col calculation.

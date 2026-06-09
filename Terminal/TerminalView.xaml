@@ -10,15 +10,16 @@
     PointerPressed="UserControl_PointerPressed"
     PointerMoved="UserControl_PointerMoved"
     PointerReleased="UserControl_PointerReleased"
+    PointerWheelChanged="UserControl_PointerWheelChanged"
     IsTabStop="True"
     AllowFocusOnInteraction="True">
     
     <!-- We need a grid to hold the canvas so we can set a background color -->
-    <Grid x:Name="RootGrid" Background="#FF0C0C0C">
+    <Grid x:Name="RootGrid" Background="Transparent">
         <!-- Win2D CanvasControl for immediate mode 2D rendering -->
         <canvas:CanvasControl x:Name="Canvas"
                               Draw="Canvas_Draw"
                               CreateResources="Canvas_CreateResources"
-                              ClearColor="#FF0C0C0C" />
+                              ClearColor="Transparent" />
     </Grid>
 </UserControl>

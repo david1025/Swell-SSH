@@ -26,5 +26,11 @@ namespace SwellSSH.Models
         public bool MinimizeOnClose { get; set; } = true;
 
         public int ScrollbackLines { get; set; } = 1000;
+
+        public static event System.Action<TerminalSettings>? GlobalSettingsChanged;
+        public static void NotifyGlobalSettingsChanged(TerminalSettings settings)
+        {
+            GlobalSettingsChanged?.Invoke(settings);
+        }
     }
 }

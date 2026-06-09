@@ -42,11 +42,106 @@ namespace SwellSSH.Pages
             {
                 MainWindow.Instance.ThemeChanged += OnThemeChanged;
             }
+            TerminalSettings.GlobalSettingsChanged += OnGlobalSettingsChanged;
+
             this.Unloaded += (_, _) =>
             {
                 if (MainWindow.Instance != null)
                     MainWindow.Instance.ThemeChanged -= OnThemeChanged;
+                TerminalSettings.GlobalSettingsChanged -= OnGlobalSettingsChanged;
             };
+
+            SetupKeyboardShortcuts();
+        }
+
+        private void OnGlobalSettingsChanged(TerminalSettings settings)
+        {
+            _cachedSettings = settings;
+            foreach (TabViewItem tab in TerminalTabView.TabItems)
+            {
+                if (tab.Content is Grid grid && grid.Children.FirstOrDefault(c => c is TerminalView) is TerminalView terminalView)
+                {
+                    terminalView.ApplySettings(settings);
+                }
+            }
+            SyncThemeMenuCheckedState(settings.ColorScheme);
+        }
+
+        private void SetupKeyboardShortcuts()
+        {
+            // Ctrl+T: New tab (invokes the add tab button logic)
+            var ctrlT = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
+            { 
+                Modifiers = Windows.System.VirtualKeyModifiers.Control, 
+                Key = Windows.System.VirtualKey.T 
+            };
+            ctrlT.Invoked += (s, e) => 
+            { 
+                e.Handled = true; 
+                TerminalTabView_AddTabButtonClick(TerminalTabView, null!);
+            };
+            this.KeyboardAccelerators.Add(ctrlT);
+
+            // Ctrl+W: Close current tab
+            var ctrlW = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
+            { 
+                Modifiers = Windows.System.VirtualKeyModifiers.Control, 
+                Key = Windows.System.VirtualKey.W 
+            };
+            ctrlW.Invoked += (s, e) => 
+            { 
+                e.Handled = true; 
+                if (TerminalTabView.SelectedItem is TabViewItem tab) 
+                    CloseTab(tab); 
+            };
+            this.KeyboardAccelerators.Add(ctrlW);
+
+            // Ctrl+Tab: Next tab
+            var ctrlTab = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
+            { 
+                Modifiers = Windows.System.VirtualKeyModifiers.Control, 
+                Key = Windows.System.VirtualKey.Tab 
+            };
+            ctrlTab.Invoked += (s, e) => 
+            {
+                e.Handled = true;
+                if (TerminalTabView.TabItems.Count > 1) 
+                    TerminalTabView.SelectedIndex = (TerminalTabView.SelectedIndex + 1) % TerminalTabView.TabItems.Count;
+            };
+            this.KeyboardAccelerators.Add(ctrlTab);
+
+            // Ctrl+Shift+Tab: Previous tab
+            var ctrlShiftTab = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
+            { 
+                Modifiers = Windows.System.VirtualKeyModifiers.Control | Windows.System.VirtualKeyModifiers.Shift, 
+                Key = Windows.System.VirtualKey.Tab 
+            };
+            ctrlShiftTab.Invoked += (s, e) => 
+            {
+                e.Handled = true;
+                if (TerminalTabView.TabItems.Count > 1) 
+                    TerminalTabView.SelectedIndex = (TerminalTabView.SelectedIndex - 1 + TerminalTabView.TabItems.Count) % TerminalTabView.TabItems.Count;
+            };
+            this.KeyboardAccelerators.Add(ctrlShiftTab);
+
+            // Ctrl+1~9: Jump to specific tab
+            for (int i = 1; i <= 9; i++)
+            {
+                var key = (Windows.System.VirtualKey)(Windows.System.VirtualKey.Number0 + i);
+                var numAcc = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
+                { 
+                    Modifiers = Windows.System.VirtualKeyModifiers.Control, 
+                    Key = key 
+                };
+                int targetIndex = i - 1;
+                numAcc.Invoked += (s, e) => 
+                {
+                    e.Handled = true;
+                    if (targetIndex < TerminalTabView.TabItems.Count)
+                        TerminalTabView.SelectedIndex = targetIndex;
+                };
+                this.KeyboardAccelerators.Add(numAcc);
+            }
         }
 
         private async void OnThemeChanged(ElementTheme newTheme)
@@ -210,27 +305,20 @@ namespace SwellSSH.Pages
 
         // ── Theme picker (TabStripFooter) ──────────────────────────────────────
 
+        private TerminalSettings? _cachedSettings;
+
         private async void ThemeMenu_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not RadioMenuFlyoutItem item) return;
             string scheme = item.Tag?.ToString() ?? "One Dark";
 
-            // 1. Load current settings, update scheme
-            var settings = await _storage.LoadSettingsAsync();
-            settings.ColorScheme = scheme;
+            if (_cachedSettings == null)
+                _cachedSettings = await _storage.LoadSettingsAsync();
 
-            // 2. Apply to all open terminal tabs immediately (no restart needed)
-            foreach (TabViewItem tab in TerminalTabView.TabItems)
-            {
-                if (tab.Content is Grid grid &&
-                    grid.Children.FirstOrDefault(c => c is TerminalView) is TerminalView tv)
-                {
-                    tv.ApplySettings(settings);
-                }
-            }
-
-            // 3. Persist so next launch & settings page stay in sync
-            await _storage.SaveSettingsAsync(settings);
+            _cachedSettings.ColorScheme = scheme;
+            await _storage.SaveSettingsAsync(_cachedSettings);
+            
+            TerminalSettings.NotifyGlobalSettingsChanged(_cachedSettings);
         }
 
         private void TerminalTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)

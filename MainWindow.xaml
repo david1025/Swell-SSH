@@ -88,23 +88,22 @@
                            VerticalAlignment="Center"/>
             </StackPanel>
 
-            <!-- Drag region for custom title bar -->
-            <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
-                  VerticalAlignment="Top" Margin="240,0,140,0"/>
-
-            <!-- Theme toggle button -->
+            <!-- Theme Toggle Button: aligned to the right side of the 240px navigation drawer -->
             <Button x:Name="ThemeToggleButton"
                     VerticalAlignment="Top" HorizontalAlignment="Left"
                     Width="36" Height="36"
                     Margin="192,6,0,0"
                     CornerRadius="4"
-                    Visibility="Collapsed"
                     Background="Transparent" BorderBrush="Transparent"
                     Padding="0"
-                    Click="ThemeToggleButton_Click"
-                    ToolTipService.ToolTip="切换主题">
+                    Click="ThemeToggleButton_Click" ToolTipService.ToolTip="切换应用主题">
                 <FontIcon x:Name="ThemeToggleIcon" Glyph="&#xE706;" FontSize="18"/>
             </Button>
+
+            <!-- Drag region for custom title bar -->
+            <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
+                  VerticalAlignment="Top" Margin="240,0,140,0"/>
+
         </Grid>
     </Grid>
 </Window>

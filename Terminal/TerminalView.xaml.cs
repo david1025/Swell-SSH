@@ -17,7 +17,7 @@ namespace SwellSSH.Terminal
         private CanvasTextFormat? _textFormat;
         private double _charWidth = 9;
         private double _charHeight = 18;
-        private bool _isRendering = false;
+        private int _scrollOffset = 0;
 
         // Selection state
         private (int x, int y)? _selectionStart;
@@ -252,8 +252,14 @@ namespace SwellSSH.Terminal
             
             if (Canvas != null && Canvas.ReadyToDraw)
             {
-                Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
-                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                Canvas.ClearColor = _defaultBg;
+                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_defaultBg);
+                UpdateFont();
+            }
+            
+            if (_session != null && _session.Buffer != null && settings != null)
+            {
+                _session.Buffer.MaxScrollback = settings.ScrollbackLines;
             }
             
             RequestRedraw();
@@ -303,23 +309,32 @@ namespace SwellSSH.Terminal
 
         private void Canvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)
         {
+            UpdateFont();
+            // Don't call UpdatePtySize here – sender.Size may be (0,0) before layout.
+            // The real connection is deferred to the first SizeChanged with a valid size.
+        }
+
+        private void UpdateFont()
+        {
+            if (Canvas == null || !Canvas.ReadyToDraw) return;
+
             _textFormat = new CanvasTextFormat
             {
-                FontFamily = "Consolas", // DirectWrite requires a single font name, not a comma-separated list
-                FontSize = (float)_settings.FontSize,
+                FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Consolas" : _settings.FontFamily,
+                FontSize = (float)(_settings?.FontSize ?? 14),
                 WordWrapping = CanvasWordWrapping.NoWrap,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
-            sender.ClearColor = Microsoft.UI.Colors.Transparent;
-            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            Canvas.ClearColor = _defaultBg;
+            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_defaultBg);
 
             // Use a 20-char string to average out any left/right layout padding.
             // This gives the most accurate per-character advance width for col calculation.
             const int measureCount = 20;
             string measureStr = new string('M', measureCount);
-            using var longLayout = new CanvasTextLayout(sender, measureStr, _textFormat, 0.0f, 0.0f);
+            using var longLayout = new CanvasTextLayout(Canvas, measureStr, _textFormat, 0.0f, 0.0f);
             _charWidth = longLayout.LayoutBounds.Width / measureCount;
             if (_charWidth <= 0) _charWidth = 8;
 
@@ -331,8 +346,10 @@ namespace SwellSSH.Terminal
             // Add 2px breathing room between lines.
             _charHeight = Math.Ceiling(_charHeight + 2);
 
-            // Don't call UpdatePtySize here – sender.Size may be (0,0) before layout.
-            // The real connection is deferred to the first SizeChanged with a valid size.
+            if (Canvas.ActualWidth > 0 && Canvas.ActualHeight > 0)
+            {
+                UpdatePtySize(Canvas.ActualWidth, Canvas.ActualHeight);
+            }
         }
 
         private void UserControl_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -406,13 +423,26 @@ namespace SwellSSH.Terminal
             
             int rows = buffer.Rows;
             int cols = buffer.Cols;
-            var lines = buffer.Lines.ToArray(); 
+            
+            int totalLines = buffer.Scrollback.Count + buffer.Lines.Count;
+            int startLineIndex = Math.Max(0, totalLines - rows - _scrollOffset);
 
             StringBuilder textChunk = new StringBuilder(cols);
 
-            for (int y = 0; y < Math.Min(rows, lines.Length); y++)
+            for (int y = 0; y < rows; y++)
             {
-                var row = lines[y];
+                int absY = startLineIndex + y;
+                TerminalRow? row = null;
+
+                if (absY < buffer.Scrollback.Count)
+                {
+                    row = buffer.Scrollback[absY];
+                }
+                else if (absY - buffer.Scrollback.Count < buffer.Lines.Count)
+                {
+                    row = buffer.Lines[absY - buffer.Scrollback.Count];
+                }
+
                 if (row == null || row.Cells == null) continue;
 
                 int startX = 0;
@@ -423,13 +453,13 @@ namespace SwellSSH.Terminal
                 {
                     var cell = row.Cells[x];
 
-                    if (IsCellSelected(x, y))
+                    if (IsCellSelected(x, y + _scrollOffset))
                     {
                         cell.BgColor = TerminalCell.SelectionBgMask;
                     }
 
-                    // Draw cursor background block
-                    if (x == buffer.CursorX && y == buffer.CursorY && this.FocusState != FocusState.Unfocused)
+                    // Draw cursor background block (only if we are not scrolled up)
+                    if (x == buffer.CursorX && y == (buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset) && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
                     {
                         if (textChunk.Length > 0)
                         {
@@ -489,12 +519,12 @@ namespace SwellSSH.Terminal
 
         private void DrawChunk(CanvasDrawingSession ds, string text, int startX, int y, TerminalCell attr)
         {
-            if (string.IsNullOrWhiteSpace(text) && attr.BgColor == TerminalCell.DefaultBg && !IsCellSelected(startX, y)) return;
+            if (string.IsNullOrWhiteSpace(text) && attr.BgColor == TerminalCell.DefaultBg) return;
 
             float xPos = (float)(startX * _charWidth);
             float yPos = (float)(y * _charHeight);
 
-            if (attr.BgColor != TerminalCell.DefaultBg || IsCellSelected(startX, y))
+            if (attr.BgColor != TerminalCell.DefaultBg)
             {
                 Color bg = ParseColor(attr.BgColor, _defaultBg);
                 ds.FillRectangle(xPos, yPos, (float)(text.Length * _charWidth), (float)_charHeight, bg);
@@ -558,7 +588,7 @@ namespace SwellSSH.Terminal
                 _isSelecting   = true;
                 this.CapturePointer(e.Pointer);
                 int x = Math.Max(0, (int)(point.Position.X / _charWidth));
-                int y = Math.Max(0, (int)(point.Position.Y / _charHeight));
+                int y = Math.Max(0, (int)(point.Position.Y / _charHeight)) + _scrollOffset;
                 _selectionStart = (x, y);
                 _selectionEnd   = (x, y); // same = no visible highlight until drag
                 // Don't call RequestRedraw here – avoids the flicker on plain click.
@@ -571,7 +601,7 @@ namespace SwellSSH.Terminal
             {
                 var point = e.GetCurrentPoint(this);
                 int x = Math.Max(0, (int)(point.Position.X / _charWidth));
-                int y = Math.Max(0, (int)(point.Position.Y / _charHeight));
+                int y = Math.Max(0, (int)(point.Position.Y / _charHeight)) + _scrollOffset;
                 _selectionEnd = (x, y);
                 RequestRedraw();
             }
@@ -594,6 +624,25 @@ namespace SwellSSH.Terminal
                     _selectionEnd = null;
                     RequestRedraw();
                 }
+            }
+        }
+
+        private void UserControl_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
+        {
+            if (_session == null || _session.Buffer == null) return;
+
+            var point = e.GetCurrentPoint(this);
+            int delta = point.Properties.MouseWheelDelta;
+            int scrollLines = -(delta / 40); // 120 per notch is typical -> 3 lines per notch
+
+            int newOffset = _scrollOffset + scrollLines;
+            if (newOffset < 0) newOffset = 0;
+            if (newOffset > _session.Buffer.Scrollback.Count) newOffset = _session.Buffer.Scrollback.Count;
+
+            if (newOffset != _scrollOffset)
+            {
+                _scrollOffset = newOffset;
+                RequestRedraw();
             }
         }
 

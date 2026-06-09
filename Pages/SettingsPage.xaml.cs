@@ -8,23 +8,31 @@ using SwellSSH.Services;
 
 namespace SwellSSH.Pages
 {
+    public class ColorSchemeItem
+    {
+        public string Name { get; set; } = "";
+        public Microsoft.UI.Xaml.Media.SolidColorBrush ColorBrush { get; set; } = null!;
+    }
+
     public sealed partial class SettingsPage : Page
     {
         private readonly ConnectionStorage _storage = new();
         private TerminalSettings _settings = new();
+        private bool _isLoading;
 
-        public string[] ColorSchemes { get; } =
+        public ColorSchemeItem[] ColorSchemes { get; } =
         {
-            "One Dark",
-            "Dracula",
-            "Solarized Dark",
-            "Catppuccin Mocha",
-            "Tokyo Night",
-            "Nord",
-            "Gruvbox Dark",
-            "Default Light"
+            new() { Name = "One Dark", ColorBrush = new(Windows.UI.Color.FromArgb(255, 40, 44, 52)) },
+            new() { Name = "Dracula", ColorBrush = new(Windows.UI.Color.FromArgb(255, 40, 42, 54)) },
+            new() { Name = "Solarized Dark", ColorBrush = new(Windows.UI.Color.FromArgb(255, 0, 43, 54)) },
+            new() { Name = "Catppuccin Mocha", ColorBrush = new(Windows.UI.Color.FromArgb(255, 30, 30, 46)) },
+            new() { Name = "Tokyo Night", ColorBrush = new(Windows.UI.Color.FromArgb(255, 26, 27, 38)) },
+            new() { Name = "Nord", ColorBrush = new(Windows.UI.Color.FromArgb(255, 46, 52, 64)) },
+            new() { Name = "Gruvbox Dark", ColorBrush = new(Windows.UI.Color.FromArgb(255, 40, 40, 40)) },
+            new() { Name = "Default Light", ColorBrush = new(Windows.UI.Color.FromArgb(255, 250, 250, 250)) }
         };
         public string[] BackdropTypes { get; } = { "Mica", "Acrylic", "None" };
+        public string[] FontFamilies { get; } = Microsoft.Graphics.Canvas.Text.CanvasTextFormat.GetSystemFontFamilies();
 
         public SettingsPage()
         {
@@ -40,14 +48,30 @@ namespace SwellSSH.Pages
 
         private async Task LoadSettingsAsync()
         {
+            _isLoading = true;
             _settings = await _storage.LoadSettingsAsync();
             ApplyToUi(_settings);
+            _isLoading = false;
         }
 
         private void ApplyToUi(TerminalSettings s)
         {
+            FontFamilyCombo.ItemsSource = FontFamilies;
+            FontFamilyCombo.SelectedItem = s.FontFamily;
+            if (FontFamilyCombo.SelectedItem == null)
+            {
+                FontFamilyCombo.SelectedItem = "Consolas";
+            }
+            
             FontSizeSlider.Value = s.FontSize;
-            ColorSchemeCombo.SelectedItem = s.ColorScheme;
+            foreach (var item in ColorSchemes)
+            {
+                if (item.Name == s.ColorScheme)
+                {
+                    ColorSchemeCombo.SelectedItem = item;
+                    break;
+                }
+            }
             BackdropCombo.SelectedItem = s.BackdropType;
             CursorBlinkToggle.IsOn = s.CursorBlink;
             MinimizeOnCloseToggle.IsOn = s.MinimizeOnClose;
@@ -64,49 +88,74 @@ namespace SwellSSH.Pages
             Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
             _settings.FontSize = e.NewValue;
+            SaveAndApplySettings();
+        }
+
+        private void FontFamilyCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FontFamilyCombo.SelectedItem is string font)
+            {
+                _settings.FontFamily = font;
+                SaveAndApplySettings();
+            }
         }
 
         private void ColorSchemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (ColorSchemeCombo.SelectedItem is string scheme)
-                _settings.ColorScheme = scheme;
+            if (ColorSchemeCombo.SelectedItem is ColorSchemeItem scheme)
+            {
+                _settings.ColorScheme = scheme.Name;
+                SaveAndApplySettings();
+            }
         }
 
         private void BackdropCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (BackdropCombo.SelectedItem is string backdrop)
+            {
                 _settings.BackdropType = backdrop;
+                SaveAndApplySettings();
+            }
         }
 
         private void CursorStyle_Checked(object sender, RoutedEventArgs e)
         {
             if (sender is RadioButton rb)
+            {
                 _settings.CursorStyle = rb.Tag?.ToString() ?? "Block";
+                SaveAndApplySettings();
+            }
         }
 
         private void CursorBlinkToggle_Toggled(object sender, RoutedEventArgs e)
         {
             _settings.CursorBlink = CursorBlinkToggle.IsOn;
+            SaveAndApplySettings();
         }
 
         private void MinimizeOnCloseToggle_Toggled(object sender, RoutedEventArgs e)
         {
             _settings.MinimizeOnClose = MinimizeOnCloseToggle.IsOn;
+            SaveAndApplySettings();
         }
 
-        private async void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
+        private async void SaveAndApplySettings()
         {
+            if (_isLoading) return;
             await _storage.SaveSettingsAsync(_settings);
+            TerminalSettings.NotifyGlobalSettingsChanged(_settings);
 
-            var infoBar = new InfoBar
+            var theme = _settings.ColorScheme == "Default Light" ? ElementTheme.Light : ElementTheme.Dark;
+            if (MainWindow.Instance != null)
             {
-                Severity = InfoBarSeverity.Success,
-                Title = "设置已保存",
-                IsOpen = true
-            };
-            (this.Content as StackPanel)?.Children.Insert(0, infoBar);
-            await Task.Delay(2000);
-            infoBar.IsOpen = false;
+                MainWindow.Instance.SetTheme(theme);
+                MainWindow.Instance.SystemBackdrop = _settings.BackdropType switch
+                {
+                    "Acrylic" => new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(),
+                    "None"    => null,
+                    _         => new Microsoft.UI.Xaml.Media.MicaBackdrop()
+                };
+            }
         }
 
         // ── 检查客户端更新 ──────────────────────────────────────────────────

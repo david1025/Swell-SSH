@@ -114,9 +114,11 @@ namespace SwellSSH.Terminal
             _rows = rows;
             try
             {
-                // ShellStream doesn't expose SendWindowChangeRequest publicly, but its internal _channel does.
-                var field = typeof(ShellStream).GetField("_channel",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                // ShellStream doesn't expose SendWindowChangeRequest publicly, but its internal channel does.
+                // Search by interface name to be robust against SSH.NET version upgrades renaming the field.
+                var field = typeof(ShellStream).GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    .FirstOrDefault(f => f.FieldType.Name.Contains("IChannelSession") || f.Name.Contains("channel"));
+                    
                 if (field?.GetValue(_shell) is object channel)
                 {
                     var method = channel.GetType().GetMethod("SendWindowChangeRequest",
@@ -192,6 +194,10 @@ namespace SwellSSH.Terminal
             {
                 int delaySec = (int)Math.Pow(2, attempt); // 2, 4, 8 seconds
                 System.Diagnostics.Debug.WriteLine($"[SSH] Reconnect attempt {attempt}/{maxRetries} in {delaySec}s...");
+                
+                string msg = $"\r\n\x1b[33m[SSH] Connection lost. Reconnecting attempt {attempt}/{maxRetries} in {delaySec}s...\x1b[0m\r\n";
+                DataReceived?.Invoke(System.Text.Encoding.UTF8.GetBytes(msg));
+                
                 await Task.Delay(TimeSpan.FromSeconds(delaySec));
                 try
                 {
@@ -202,6 +208,10 @@ namespace SwellSSH.Terminal
                         (uint)_cols, (uint)_rows, 0, 0, 4096);
                     _readCts = new CancellationTokenSource();
                     _ = Task.Run(() => ReadLoopAsync(_readCts.Token));
+                    
+                    string successMsg = $"\r\n\x1b[32m[SSH] Reconnected successfully.\x1b[0m\r\n";
+                    DataReceived?.Invoke(System.Text.Encoding.UTF8.GetBytes(successMsg));
+                    
                     System.Diagnostics.Debug.WriteLine($"[SSH] Reconnected successfully.");
                     return;
                 }
@@ -212,6 +222,9 @@ namespace SwellSSH.Terminal
             }
 
             // Give up after max retries
+            string failMsg = $"\r\n\x1b[31m[SSH] Reconnect failed after 3 attempts. Disconnected.\x1b[0m\r\n";
+            DataReceived?.Invoke(System.Text.Encoding.UTF8.GetBytes(failMsg));
+            
             Disconnected?.Invoke(new Exception("Reconnect failed after 3 attempts."));
         }
 

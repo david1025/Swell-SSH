@@ -48,14 +48,15 @@ namespace SwellSSH.Terminal
     /// </summary>
     public sealed class TerminalBuffer : ITerminalActionHandler
     {
-        public int Cols { get; private set; }
         public int Rows { get; private set; }
+        public int Cols { get; private set; }
+
+        public List<TerminalRow> Lines { get; } = new();
+        public List<TerminalRow> Scrollback { get; } = new();
+        public int MaxScrollback { get; set; } = 1000;
 
         public int CursorX { get; private set; }
         public int CursorY { get; private set; }
-
-        // The active screen buffer
-        public List<TerminalRow> Lines { get; } = new();
 
         // Current graphic rendition state
         private TerminalCell _currentAttr = new()
@@ -84,6 +85,12 @@ namespace SwellSSH.Terminal
             while (Lines.Count < rows)
             {
                 Lines.Add(new TerminalRow(cols));
+            }
+
+            // Remove excess rows if shrinking
+            while (Lines.Count > rows)
+            {
+                Lines.RemoveAt(Lines.Count - 1);
             }
 
             // Ensure all rows have correct width
@@ -207,6 +214,13 @@ namespace SwellSSH.Terminal
 
         public void CsiDispatch(char action, int[] parameters, bool hasQuestionMark)
         {
+            if (hasQuestionMark)
+            {
+                // DEC Private Mode sequences (e.g., CSI ? 25 h for cursor, CSI ? 1049 h for alt buffer)
+                // We currently ignore these, but we MUST return early so they don't trigger standard CSI logic.
+                return;
+            }
+
             int p1 = parameters.Length > 0 ? parameters[0] : 0;
             int p2 = parameters.Length > 1 ? parameters[1] : 0;
 
@@ -290,8 +304,16 @@ namespace SwellSSH.Terminal
         private void ScrollDown()
         {
             // Remove top row, add empty row at bottom
+            var topRow = Lines[0];
             Lines.RemoveAt(0);
             Lines.Add(new TerminalRow(Cols));
+
+            Scrollback.Add(topRow);
+            if (Scrollback.Count > MaxScrollback)
+            {
+                int removeCount = Scrollback.Count - MaxScrollback;
+                Scrollback.RemoveRange(0, removeCount);
+            }
         }
 
         private void ScrollUp()

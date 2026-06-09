@@ -65,6 +65,9 @@
                         <NavigationViewItem.Icon>
                             <FontIcon x:Name="SettingsNavIcon" Glyph="&#xE713;" />
                         </NavigationViewItem.Icon>
+                        <NavigationViewItem.InfoBadge>
+                            <InfoBadge x:Name="UpdateBadge" Style="{ThemeResource AttentionIconInfoBadgeStyle}" Visibility="Collapsed" />
+                        </NavigationViewItem.InfoBadge>
                     </NavigationViewItem>
                 </NavigationView.MenuItems>
 

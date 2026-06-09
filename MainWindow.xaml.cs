@@ -58,6 +58,29 @@ namespace SwellSSH
             // Navigation
             MainNav.SelectionChanged += MainNav_SelectionChanged;
             MainNav.SelectedItem = ConnectionsNavItem;
+
+            // Background update check
+            _ = CheckForUpdatesAsync();
+        }
+
+        private async Task CheckForUpdatesAsync()
+        {
+            try
+            {
+                var updater = new SwellSSH.Services.AppUpdateService();
+                var info = await updater.CheckAsync(System.Threading.CancellationToken.None);
+                if (info != null && UpdateBadge != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        UpdateBadge.Visibility = Visibility.Visible;
+                    });
+                }
+            }
+            catch
+            {
+                // Ignore background check errors
+            }
         }
 
         // ── Settings persistence ─────────────────────────────────────────────

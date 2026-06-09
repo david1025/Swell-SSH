@@ -52,6 +52,7 @@ jobs:
           -p:PublishSingleFile=true
           -p:EnableCompressionInSingleFile=true
           -p:PublishTrimmed=false
+          -p:PublishReadyToRun=false
           -p:IncludeNativeLibrariesForSelfExtract=true
           -p:WindowsAppSDKSelfContained=true
           -p:CopyOutputSymbolsToPublishDirectory=false
@@ -62,8 +63,8 @@ jobs:
           dotnet publish SwellSSH.Updater/SwellSSH.Updater.csproj
           -c Release
           -r ${{ matrix.rid }}
-          -p:PublishSingleFile=true
-          -p:SelfContained=true
+          -p:PublishAot=true
+          -p:StripSymbols=true
           -p:Version=${{ steps.ver.outputs.version }}
 
       - name: Verify exe produced
@@ -94,7 +95,12 @@ jobs:
             Select-Object -First 1).FullName
           $updaterExe = "$updaterPublishDir/SwellSSH.Updater.exe"
           Copy-Item $updaterExe -Destination $publishDir
-          
+
+          # 删除调试诊断文件，普通用户不需要这些
+          Remove-Item "$publishDir\mscord*" -ErrorAction SilentlyContinue
+          Remove-Item "$publishDir\*DiaSymReader*" -ErrorAction SilentlyContinue
+          Remove-Item "$publishDir\*.pdb" -ErrorAction SilentlyContinue
+
           $zipName = "SwellSSH-${{ matrix.rid }}.zip"
           Compress-Archive -Path "$publishDir/*" -DestinationPath $zipName -CompressionLevel Optimal
           Write-Host "Created $zipName ($((Get-Item $zipName).Length) bytes)"

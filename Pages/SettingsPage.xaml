@@ -13,7 +13,7 @@
                 <TextBlock Text="终端字体" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <ComboBox x:Name="FontFamilyCombo" Header="字体" Width="300" HorizontalAlignment="Left"
                           SelectionChanged="FontFamilyCombo_SelectionChanged"/>
-                <Slider x:Name="FontSizeSlider" Header="字体大小" Minimum="10" Maximum="24" StepFrequency="1"
+                <Slider x:Name="FontSizeSlider" Header="字体大小" Minimum="10" Maximum="32" StepFrequency="1"
                         Width="300" HorizontalAlignment="Left" ValueChanged="FontSizeSlider_ValueChanged"/>
             </StackPanel>
 

@@ -20,6 +20,10 @@ namespace SwellSSH.Pages
         private TerminalSettings _settings = new();
         private bool _isLoading;
 
+        // 记录已应用到窗口的值，避免没有变化时重建 Backdrop / 切换主题（会导致白闪）
+        private string _appliedBackdropType = "";
+        private ElementTheme _appliedTheme = ElementTheme.Default;
+
         public ColorSchemeItem[] ColorSchemes { get; } =
         {
             new() { Name = "One Dark", ColorBrush = new(Windows.UI.Color.FromArgb(255, 40, 44, 52)) },
@@ -36,6 +40,10 @@ namespace SwellSSH.Pages
 
         public SettingsPage()
         {
+            // 必须在 InitializeComponent() 之前设为 true，
+            // 否则控件初始化时（Slider 默认值=10、ComboBox 首次赋值）
+            // 触发的事件会在加载完成前把错误的默认值写入配置文件。
+            _isLoading = true;
             this.InitializeComponent();
             _ = LoadSettingsAsync();
 
@@ -48,7 +56,7 @@ namespace SwellSSH.Pages
 
         private async Task LoadSettingsAsync()
         {
-            _isLoading = true;
+            // _isLoading 已在构造函数里设为 true，这里无需重复设置
             _settings = await _storage.LoadSettingsAsync();
             ApplyToUi(_settings);
             _isLoading = false;
@@ -56,50 +64,32 @@ namespace SwellSSH.Pages
 
         private void ApplyToUi(TerminalSettings s)
         {
+            // 使用 SelectedIndex 而非 SelectedItem，避免 WinUI 3 中
+            // SelectedItem 赋值后不立即同步（getter 仍返回旧值）
+            // 导致 null 误判、错误 fallback 覆盖正确设置的问题。
+
             FontFamilyCombo.ItemsSource = FontFamilies;
-            foreach (var font in FontFamilies)
-            {
-                if (font == s.FontFamily)
-                {
-                    FontFamilyCombo.SelectedItem = font;
-                    break;
-                }
-            }
-            if (FontFamilyCombo.SelectedItem == null)
-            {
-                FontFamilyCombo.SelectedItem = "Consolas";
-            }
-            
+            int fontIdx = System.Array.IndexOf(FontFamilies, s.FontFamily);
+            FontFamilyCombo.SelectedIndex = fontIdx >= 0 ? fontIdx
+                : System.Array.IndexOf(FontFamilies, "Consolas");
+
             FontSizeSlider.Value = s.FontSize;
-            foreach (var item in ColorSchemes)
-            {
-                if (item.Name == s.ColorScheme)
-                {
-                    ColorSchemeCombo.SelectedItem = item;
-                    break;
-                }
-            }
-            
-            foreach (var backdrop in BackdropTypes)
-            {
-                if (backdrop == s.BackdropType)
-                {
-                    BackdropCombo.SelectedItem = backdrop;
-                    break;
-                }
-            }
-            if (BackdropCombo.SelectedItem == null)
-            {
-                BackdropCombo.SelectedItem = BackdropTypes[0]; // Fallback to Mica
-            }
+
+            int schemeIdx = System.Array.FindIndex(ColorSchemes, cs => cs.Name == s.ColorScheme);
+            ColorSchemeCombo.SelectedIndex = schemeIdx >= 0 ? schemeIdx : 0;
+
+            // BackdropTypes = { "Mica", "Acrylic", "None" }
+            int backdropIdx = System.Array.IndexOf(BackdropTypes, s.BackdropType);
+            BackdropCombo.SelectedIndex = backdropIdx >= 0 ? backdropIdx : 0;
+
             CursorBlinkToggle.IsOn = s.CursorBlink;
             MinimizeOnCloseToggle.IsOn = s.MinimizeOnClose;
 
             switch (s.CursorStyle)
             {
                 case "Underline": CursorUnderline.IsChecked = true; break;
-                case "Bar": CursorBar.IsChecked = true; break;
-                default: CursorBlock.IsChecked = true; break;
+                case "Bar":       CursorBar.IsChecked = true; break;
+                default:          CursorBlock.IsChecked = true; break;
             }
         }
 
@@ -164,10 +154,21 @@ namespace SwellSSH.Pages
             await _storage.SaveSettingsAsync(_settings);
             TerminalSettings.NotifyGlobalSettingsChanged(_settings);
 
+            if (MainWindow.Instance == null) return;
+
+            // 只有 ColorScheme 真正变化时才调用 SetTheme，避免不必要的主题刷新
             var theme = _settings.ColorScheme == "Default Light" ? ElementTheme.Light : ElementTheme.Dark;
-            if (MainWindow.Instance != null)
+            if (theme != _appliedTheme)
             {
+                _appliedTheme = theme;
                 MainWindow.Instance.SetTheme(theme);
+            }
+
+            // 只有 BackdropType 真正变化时才重建 Backdrop，
+            // 否则拖动字体大小等其他设置每次都会重建亚克力，导致白闪
+            if (_settings.BackdropType != _appliedBackdropType)
+            {
+                _appliedBackdropType = _settings.BackdropType;
                 MainWindow.Instance.SystemBackdrop = _settings.BackdropType switch
                 {
                     "Acrylic" => new Microsoft.UI.Xaml.Media.DesktopAcrylicBackdrop(),

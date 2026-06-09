@@ -19,13 +19,43 @@ using SwellSSH.Terminal;
 namespace SwellSSH.Pages
 {
     /// <summary>Simple view-model row for the connection list.</summary>
-    public class ConnectionItemViewModel : INotifyPropertyChanged
+    public abstract class SidebarItemViewModel : INotifyPropertyChanged
+    {
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected void OnPropertyChanged([CallerMemberName] string? name = null) =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    public class ConnectionGroupViewModel : SidebarItemViewModel
+    {
+        public string Name { get; }
+        public ObservableCollection<ConnectionItemViewModel> Children { get; } = new();
+
+        private bool _isExpanded = true;
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (_isExpanded != value)
+                {
+                    _isExpanded = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ChevronGlyph));
+                }
+            }
+        }
+        public string ChevronGlyph => IsExpanded ? "\uE70D" : "\uE76C"; // Down / Right arrow
+
+        public ConnectionGroupViewModel(string name) => Name = name;
+    }
+
+    public class ConnectionItemViewModel : SidebarItemViewModel
     {
         public ConnectionProfile Profile { get; }
-        public string Name  => Profile.Name;
         public string Group => Profile.Group;
+        public string Name => Profile.Name;
 
-        // ── IP 隐私遮罩 ───────────────────────────────────────────────────────
         private bool _isIpVisible;
         public bool IsIpVisible
         {
@@ -39,16 +69,13 @@ namespace SwellSSH.Pages
             }
         }
 
-        /// <summary>运行时展示给用户的展示内容，包括 IP 遮罩 + 监控统计。</summary>
         public string DisplayHostPort =>
             IsIpVisible
                 ? $"{Profile.Username}@{Profile.Host}:{Profile.Port}"
                 : $"{Profile.Username}@***.***.***.***:{Profile.Port}";
 
-        /// <summary>眼睛图标 Segoe MDL2 字形：打开=E7B3，关闭=E7A8</summary>
         public string EyeGlyph => IsIpVisible ? "\uE7B3" : "\uE7A8";
 
-        // ── 监控统计 ─────────────────────────────────────────────────────
         private string _statsText = "";
         private bool _monitoringVisible;
 
@@ -75,7 +102,6 @@ namespace SwellSSH.Pages
             }
             else
             {
-                // First poll (CPU needs two samples): show partial info
                 StatsText = s.RamPercent >= 0
                     ? $"RAM {s.RamPercent,4:F0}%  Disk {s.DiskPercent,3:F0}%  …"
                     : "正在获取监控数据…";
@@ -86,22 +112,14 @@ namespace SwellSSH.Pages
         }
 
         public ConnectionItemViewModel(ConnectionProfile profile) => Profile = profile;
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-        private void OnPropertyChanged([CallerMemberName] string? name = null)
-            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-    }
-
-    public class GroupInfoList : System.Collections.Generic.List<object>
-    {
-        public object Key { get; set; } = "";
     }
 
     public sealed partial class MainPage : Page
     {
         private readonly ConnectionStorage _storage = new();
         private readonly KnownHostsService _knownHosts = new();
-        public ObservableCollection<ConnectionItemViewModel> Connections { get; } = new();
+        public ObservableCollection<SidebarItemViewModel> FlatSidebarItems { get; } = new();
+        private readonly List<ConnectionGroupViewModel> _groups = new();
         // Map profileId → ViewModel for fast stats lookup
         private readonly Dictionary<string, ConnectionItemViewModel> _vmById = new();
 
@@ -238,28 +256,25 @@ namespace SwellSSH.Pages
         private async Task LoadConnectionsAsync()
         {
             var profiles = await _storage.LoadConnectionsAsync();
-            Connections.Clear();
+            _groups.Clear();
             _vmById.Clear();
-            foreach (var p in profiles)
+
+            // 1. Group profiles
+            var grouped = profiles.GroupBy(p => string.IsNullOrEmpty(p.Group) ? "默认分组" : p.Group);
+            foreach (var g in grouped)
             {
-                var vm = new ConnectionItemViewModel(p);
-                Connections.Add(vm);
-                _vmById[p.Id] = vm;
+                var groupVm = new ConnectionGroupViewModel(g.Key);
+                foreach (var p in g)
+                {
+                    var itemVm = new ConnectionItemViewModel(p);
+                    groupVm.Children.Add(itemVm);
+                    _vmById[p.Id] = itemVm;
+                }
+                _groups.Add(groupVm);
             }
 
-            var groupedList = new ObservableCollection<GroupInfoList>();
-            var realQuery = from item in Connections
-                            group item by item.Group into g
-                            select g;
-            foreach (var g in realQuery)
-            {
-                var info = new GroupInfoList { Key = g.Key };
-                info.AddRange(g);
-                groupedList.Add(info);
-            }
-
-            ConnectionsCVS.Source = groupedList;
-            UpdateEmptyState();
+            // 2. Build flat list
+            RefreshFlatSidebarList();
 
             // Sync settings theme menu
             var settings = await _storage.LoadSettingsAsync();
@@ -267,6 +282,49 @@ namespace SwellSSH.Pages
 
             // Start/stop background monitoring per profile
             ServerMonitorService.Instance.Sync(profiles);
+        }
+
+        private void RefreshFlatSidebarList()
+        {
+            FlatSidebarItems.Clear();
+            foreach (var g in _groups)
+            {
+                FlatSidebarItems.Add(g);
+                if (g.IsExpanded)
+                {
+                    foreach (var child in g.Children)
+                        FlatSidebarItems.Add(child);
+                }
+            }
+            UpdateEmptyState();
+        }
+
+        private void GroupHeader_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is ConnectionGroupViewModel g)
+            {
+                e.Handled = true;
+                g.IsExpanded = !g.IsExpanded;
+
+                // Smart update flat list (insert/remove instead of full rebuild for animation-friendly UI)
+                int groupIndex = FlatSidebarItems.IndexOf(g);
+                if (groupIndex < 0) return;
+
+                if (g.IsExpanded)
+                {
+                    int insertAt = groupIndex + 1;
+                    foreach (var child in g.Children)
+                        FlatSidebarItems.Insert(insertAt++, child);
+                }
+                else
+                {
+                    for (int i = 0; i < g.Children.Count; i++)
+                    {
+                        if (groupIndex + 1 < FlatSidebarItems.Count && FlatSidebarItems[groupIndex + 1] is ConnectionItemViewModel)
+                            FlatSidebarItems.RemoveAt(groupIndex + 1);
+                    }
+                }
+            }
         }
 
         /// <summary>Called from ServerMonitorService on thread-pool; marshal to UI thread.</summary>
@@ -301,8 +359,8 @@ namespace SwellSSH.Pages
 
         private void UpdateEmptyState()
         {
-            EmptyStatePanel.Visibility = TerminalTabView.TabItems.Count == 0
-                ? Visibility.Visible : Visibility.Collapsed;
+            if (EmptyStatePanel != null)
+                EmptyStatePanel.Visibility = TerminalTabView.TabItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // ── Connection list actions ───────────────────────────────────────────
@@ -716,7 +774,7 @@ namespace SwellSSH.Pages
         {
             var nameBox = new TextBox { Header = "连接名称", Text = profile.Name, PlaceholderText = "My Server" };
 
-            var existingGroups = Connections.Select(c => c.Group).Distinct().Where(g => !string.IsNullOrEmpty(g)).ToList();
+            var existingGroups = _groups.Select(g => g.Name).Distinct().Where(g => !string.IsNullOrEmpty(g)).ToList();
             if (!existingGroups.Contains("默认分组")) existingGroups.Insert(0, "默认分组");
             var groupCombo = new ComboBox
             {

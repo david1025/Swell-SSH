@@ -6,7 +6,74 @@
     xmlns:ui="using:CommunityToolkit.WinUI.Controls">
 
     <Page.Resources>
-        <CollectionViewSource x:Name="ConnectionsCVS" IsSourceGrouped="True" />
+        <DataTemplate x:Key="SidebarGroupTemplate" x:DataType="local:ConnectionGroupViewModel">
+            <Grid Padding="0,12,0,4" Background="Transparent" Tapped="GroupHeader_Tapped" BackgroundSizing="InnerBorderEdge">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <FontIcon Glyph="{x:Bind ChevronGlyph, Mode=OneWay}" FontSize="10" Margin="0,0,8,0" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="SidebarItemTemplate" x:DataType="local:ConnectionItemViewModel">
+            <Grid Padding="4,8" ColumnSpacing="10" Margin="12,0,0,0">
+                <Grid.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="连接" Click="ConnectMenu_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE768;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="编辑" Click="EditMenu_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE70F;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="删除" Click="DeleteMenu_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE74D;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                    </MenuFlyout>
+                </Grid.ContextFlyout>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <FontIcon Grid.Column="0" Glyph="&#xE8C8;" FontSize="18"
+                          Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                    <TextBlock Text="{x:Bind DisplayHostPort, Mode=OneWay}"
+                               Style="{ThemeResource CaptionTextBlockStyle}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    <!-- Monitoring stats row -->
+                    <TextBlock Text="{x:Bind StatsText, Mode=OneWay}"
+                               Visibility="{x:Bind IsMonitoringVisible, Mode=OneWay}"
+                               FontSize="10"
+                               Opacity="0.65"
+                               FontFamily="Consolas"
+                               Margin="0,1,0,0"/>
+                </StackPanel>
+                <!-- IP 遮罩切换按钮 -->
+                <Button Grid.Column="2"
+                        Width="28" Height="28" Padding="0"
+                        Background="Transparent" BorderBrush="Transparent"
+                        CornerRadius="4"
+                        ToolTipService.ToolTip="显示/隐藏 IP 地址"
+                        Click="ToggleIpVisibility_Click">
+                    <FontIcon Glyph="{x:Bind EyeGlyph, Mode=OneWay}" FontSize="13"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                </Button>
+            </Grid>
+        </DataTemplate>
+
+        <local:SidebarTemplateSelector x:Key="SidebarTemplateSelector"
+            GroupTemplate="{StaticResource SidebarGroupTemplate}"
+            ItemTemplate="{StaticResource SidebarItemTemplate}" />
     </Page.Resources>
 
     <Grid>
@@ -57,71 +124,15 @@
                 Grid.Row="2"
                 SelectionMode="Single"
                 DoubleTapped="ConnectionListView_DoubleTapped"
-                ItemsSource="{x:Bind ConnectionsCVS.View, Mode=OneWay}">
-                <ListView.GroupStyle>
-                    <GroupStyle>
-                        <GroupStyle.HeaderTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Key}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,12,0,4"/>
-                            </DataTemplate>
-                        </GroupStyle.HeaderTemplate>
-                    </GroupStyle>
-                </ListView.GroupStyle>
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="local:ConnectionItemViewModel">
-                        <Grid Padding="4,8" ColumnSpacing="10">
-                            <Grid.ContextFlyout>
-                                <MenuFlyout>
-                                    <MenuFlyoutItem Text="连接" Click="ConnectMenu_Click">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE768;"/>
-                                        </MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="编辑" Click="EditMenu_Click">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE70F;"/>
-                                        </MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                    <MenuFlyoutItem Text="删除" Click="DeleteMenu_Click">
-                                        <MenuFlyoutItem.Icon>
-                                            <FontIcon Glyph="&#xE74D;"/>
-                                        </MenuFlyoutItem.Icon>
-                                    </MenuFlyoutItem>
-                                </MenuFlyout>
-                            </Grid.ContextFlyout>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <FontIcon Grid.Column="0" Glyph="&#xE8C8;" FontSize="18"
-                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
-                            <StackPanel Grid.Column="1" Spacing="2">
-                                <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-                                <TextBlock Text="{x:Bind DisplayHostPort, Mode=OneWay}"
-                                           Style="{ThemeResource CaptionTextBlockStyle}"
-                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                <!-- Monitoring stats row -->
-                                <TextBlock Text="{x:Bind StatsText, Mode=OneWay}"
-                                           Visibility="{x:Bind IsMonitoringVisible, Mode=OneWay}"
-                                           FontSize="10"
-                                           Opacity="0.65"
-                                           FontFamily="Consolas"
-                                           Margin="0,1,0,0"/>
-                            </StackPanel>
-                            <!-- IP 遮罩切换按钮 -->
-                            <Button Grid.Column="2"
-                                    Width="28" Height="28" Padding="0"
-                                    Background="Transparent" BorderBrush="Transparent"
-                                    CornerRadius="4"
-                                    ToolTipService.ToolTip="显示/隐藏 IP 地址"
-                                    Click="ToggleIpVisibility_Click">
-                                <FontIcon Glyph="{x:Bind EyeGlyph, Mode=OneWay}" FontSize="13"
-                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                            </Button>
-                        </Grid>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
+                ItemsSource="{x:Bind FlatSidebarItems, Mode=OneWay}"
+                ItemTemplateSelector="{StaticResource SidebarTemplateSelector}">
+                <!-- Remove default item padding to let our margin trick work for indent -->
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="MinHeight" Value="32"/>
+                    </Style>
+                </ListView.ItemContainerStyle>
             </ListView>
 
             <!-- Bottom toolbar -->

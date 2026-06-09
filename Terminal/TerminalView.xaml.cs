@@ -249,6 +249,10 @@ namespace SwellSSH.Terminal
                 _ansiColors = DarkStandardColors;
                 _selectionBg = Color.FromArgb(255, 38, 79, 120);
             }
+
+            // Apply BackgroundOpacity: let Mica/Acrylic show through
+            byte alpha = (byte)Math.Clamp((int)(settings.BackgroundOpacity * 255), 0, 255);
+            _defaultBg = Color.FromArgb(alpha, _defaultBg.R, _defaultBg.G, _defaultBg.B);
             
             if (Canvas != null && Canvas.ReadyToDraw)
             {
@@ -327,8 +331,11 @@ namespace SwellSSH.Terminal
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
-            Canvas.ClearColor = _defaultBg;
-            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(_defaultBg);
+            // Re-apply opacity in case UpdateFont is called directly
+            byte bgAlpha = (byte)Math.Clamp((int)((_settings?.BackgroundOpacity ?? 0.95) * 255), 0, 255);
+            var bgWithOpacity = Color.FromArgb(bgAlpha, _defaultBg.R, _defaultBg.G, _defaultBg.B);
+            Canvas.ClearColor = bgWithOpacity;
+            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(bgWithOpacity);
 
             // Use a 20-char string to average out any left/right layout padding.
             // This gives the most accurate per-character advance width for col calculation.

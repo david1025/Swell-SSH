@@ -65,10 +65,17 @@
             <!-- About -->
             <StackPanel Spacing="8">
                 <TextBlock Text="关于 SwellSSH" Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                <TextBlock Text="版本 1.0.0" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                <TextBlock Text="现代化的 Windows SSH 客户端，使用 Win2D 硬件加速渲染与原生 WinUI 3 打造。" 
+                <TextBlock x:Name="AppVersionText"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                <TextBlock Text="现代化的 Windows SSH 客户端，使用 Win2D 硬件加速渲染与原生 WinUI 3 打造。"
                            TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+
+                <Button x:Name="CheckAppUpdateButton"
+                        Content="检查更新"
+                        Margin="0,8,0,0"
+                        Click="CheckAppUpdateButton_Click"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </Page>
+

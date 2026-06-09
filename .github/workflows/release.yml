@@ -57,11 +57,18 @@ jobs:
           -p:CopyOutputSymbolsToPublishDirectory=false
           -p:Version=${{ steps.ver.outputs.version }}
 
+      - name: Publish Updater (${{ matrix.rid }})
+        run: >
+          dotnet publish SwellSSH.Updater/SwellSSH.Updater.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          -p:Version=${{ steps.ver.outputs.version }}
+
       - name: Verify exe produced
         shell: pwsh
         run: |
           $publishDir = (Get-ChildItem -Path "bin" -Filter "publish" -Recurse -Directory |
-            Where-Object { $_.FullName -match "${{ matrix.rid }}" } |
+            Where-Object { $_.FullName -match "${{ matrix.rid }}" -and $_.FullName -notmatch "Updater" } |
             Select-Object -First 1).FullName
           if (-not $publishDir) {
             Write-Host "::error::Could not find publish directory"
@@ -78,8 +85,14 @@ jobs:
         shell: pwsh
         run: |
           $publishDir = (Get-ChildItem -Path "bin" -Filter "publish" -Recurse -Directory |
+            Where-Object { $_.FullName -match "${{ matrix.rid }}" -and $_.FullName -notmatch "Updater" } |
+            Select-Object -First 1).FullName
+          $updaterPublishDir = (Get-ChildItem -Path "SwellSSH.Updater/bin" -Filter "publish" -Recurse -Directory |
             Where-Object { $_.FullName -match "${{ matrix.rid }}" } |
             Select-Object -First 1).FullName
+          $updaterExe = "$updaterPublishDir/SwellSSH.Updater.exe"
+          Copy-Item $updaterExe -Destination $publishDir
+          
           $zipName = "SwellSSH-${{ matrix.rid }}.zip"
           Compress-Archive -Path "$publishDir/*" -DestinationPath $zipName -CompressionLevel Optimal
           Write-Host "Created $zipName ($((Get-Item $zipName).Length) bytes)"

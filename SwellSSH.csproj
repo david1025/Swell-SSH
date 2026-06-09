@@ -27,6 +27,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="SwellSSH.Updater\**" />
+    <Content Remove="SwellSSH.Updater\**" />
+    <None Remove="SwellSSH.Updater\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- SSH protocol -->
     <PackageReference Include="SSH.NET" Version="2024.2.0" />
     <!-- Win2D GPU canvas rendering -->

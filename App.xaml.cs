@@ -48,6 +48,9 @@ namespace SwellSSH
                 return;
             }
 
+            // Clean up old updater staging directories
+            new SwellSSH.Services.AppUpdateService().CleanupOldStagingDirs();
+
             File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] Creating MainWindow...\n");
             try {
                 _window = new MainWindow();

@@ -1,0 +1,6 @@
+CreatePseudoConsole
+ResizePseudoConsole
+ClosePseudoConsole
+SetProcessWorkingSetSize
+CreatePipe
+SetHandleInformation

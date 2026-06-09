@@ -1,0 +1,210 @@
+<Page
+    x:Class="SwellSSH.Pages.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SwellSSH.Pages">
+
+    <Page.Resources>
+        <CollectionViewSource x:Name="ConnectionsCVS" IsSourceGrouped="True" />
+    </Page.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Connection list sidebar -->
+            <ColumnDefinition Width="280" />
+            <!-- Terminal tab area -->
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ── Left: Connection List ──────────────────────────────────── -->
+        <Grid Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <Grid Grid.Row="0" Padding="16,12">
+                <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+            </Grid>
+
+            <!-- Connection list -->
+            <ListView
+                x:Name="ConnectionListView"
+                Grid.Row="1"
+                SelectionMode="Single"
+                DoubleTapped="ConnectionListView_DoubleTapped"
+                ItemsSource="{x:Bind ConnectionsCVS.View, Mode=OneWay}">
+                <ListView.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Key}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorTertiaryBrush}" Margin="0,12,0,4"/>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListView.GroupStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:ConnectionItemViewModel">
+                        <Grid Padding="4,8" ColumnSpacing="12">
+                            <Grid.ContextFlyout>
+                                <MenuFlyout>
+                                    <MenuFlyoutItem Text="连接" Click="ConnectMenu_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE768;"/>
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="编辑" Click="EditMenu_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE70F;"/>
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                    <MenuFlyoutItem Text="删除" Click="DeleteMenu_Click">
+                                        <MenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE74D;"/>
+                                        </MenuFlyoutItem.Icon>
+                                    </MenuFlyoutItem>
+                                </MenuFlyout>
+                            </Grid.ContextFlyout>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Grid.Column="0" Glyph="&#xE8C8;" FontSize="18"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                                <TextBlock Text="{x:Bind HostPort}" Style="{ThemeResource CaptionTextBlockStyle}"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <!-- Bottom toolbar -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8" Spacing="4">
+                <Button x:Name="AddConnectionButton" Click="AddConnectionButton_Click"
+                        ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                        <TextBlock Text="新建连接"/>
+                    </StackPanel>
+                </Button>
+                <Button x:Name="EditConnectionButton" Click="EditConnectionButton_Click"
+                        ToolTipService.ToolTip="编辑所选连接">
+                    <FontIcon Glyph="&#xE70F;" FontSize="14"/>
+                </Button>
+                <Button x:Name="DeleteConnectionButton" Click="DeleteConnectionButton_Click"
+                        ToolTipService.ToolTip="删除所选连接">
+                    <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- ── Right: Terminal TabView ───────────────────────────────── -->
+        <Grid Grid.Column="1">
+            <TabView
+                x:Name="TerminalTabView"
+                AddTabButtonClick="TerminalTabView_AddTabButtonClick"
+                TabCloseRequested="TerminalTabView_TabCloseRequested"
+                VerticalAlignment="Stretch">
+                <!-- Placeholder shown when no tabs are open -->
+                <TabView.TabStripFooter>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" Margin="0,0,4,0">
+                        <!-- Theme picker button -->
+                        <Button x:Name="ThemePickerButton"
+                                Width="32" Height="32" Padding="0"
+                                CornerRadius="4"
+                                Background="Transparent" BorderBrush="Transparent"
+                                ToolTipService.ToolTip="切换终端主题">
+                            <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                            <Button.Flyout>
+                                <MenuFlyout Placement="Bottom">
+                                    <RadioMenuFlyoutItem x:Name="ThemeOneDark"
+                                        Text="One Dark" GroupName="ThemeGroup"
+                                        IsChecked="True"
+                                        Click="ThemeMenu_Click" Tag="One Dark">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#282C34"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeDracula"
+                                        Text="Dracula" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Dracula">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#282A36"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeSolarized"
+                                        Text="Solarized Dark" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Solarized Dark">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#002B36"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeCatppuccin"
+                                        Text="Catppuccin Mocha" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Catppuccin Mocha">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#1E1E2E"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeTokyoNight"
+                                        Text="Tokyo Night" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Tokyo Night">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#1A1B26"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeNord"
+                                        Text="Nord" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Nord">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#2E3440"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <RadioMenuFlyoutItem x:Name="ThemeGruvbox"
+                                        Text="Gruvbox Dark" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Gruvbox Dark">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#282828"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                    <MenuFlyoutSeparator/>
+                                    <RadioMenuFlyoutItem x:Name="ThemeDefaultLight"
+                                        Text="Default Light" GroupName="ThemeGroup"
+                                        Click="ThemeMenu_Click" Tag="Default Light">
+                                        <RadioMenuFlyoutItem.Icon>
+                                            <FontIcon Glyph="&#xE91F;" Foreground="#FAFAFA"/>
+                                        </RadioMenuFlyoutItem.Icon>
+                                    </RadioMenuFlyoutItem>
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
+                    </StackPanel>
+                </TabView.TabStripFooter>
+
+            </TabView>
+
+            <!-- Empty state when no tabs -->
+            <StackPanel
+                x:Name="EmptyStatePanel"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="16">
+                <FontIcon Glyph="&#xE8C8;" FontSize="64"
+                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                <TextBlock Text="双击左侧连接以打开终端"
+                           Style="{ThemeResource SubtitleTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           HorizontalAlignment="Center"/>
+                <TextBlock Text="或点击「新建连接」添加一个 SSH 连接"
+                           Style="{ThemeResource BodyTextBlockStyle}"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

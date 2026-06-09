@@ -1,0 +1,40 @@
+## .gitignore for SwellSSH — WinUI3 .NET project
+
+# Build outputs
+bin/
+obj/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Debug logs
+debug.log
+*.log
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!**/packages/repositories.config
+.nuget/
+
+# OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# User-specific AppData (runtime data, not source)
+# %AppData%\SwellSSH\ is outside the repo anyway
+
+# Test results
+TestResults/
+coverage.xml
+
+# Publish output
+publish/

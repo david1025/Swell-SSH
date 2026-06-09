@@ -6,7 +6,7 @@ namespace SwellSSH.Models
     /// </summary>
     public class TerminalSettings
     {
-        public string FontFamily { get; set; } = "Cascadia Code";
+        public string FontFamily { get; set; } = "Consolas";
         public double FontSize { get; set; } = 16.0;
 
         /// <summary>One Dark | Solarized Dark | Dracula | Catppuccin Mocha | Tokyo Night | Nord | Gruvbox Dark | Default Light</summary>

@@ -321,7 +321,7 @@ namespace SwellSSH.Terminal
             _textFormat = new CanvasTextFormat
             {
                 FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Consolas" : _settings.FontFamily,
-                FontSize = (float)(_settings?.FontSize ?? 14),
+                FontSize = (float)(_settings?.FontSize ?? 16),
                 WordWrapping = CanvasWordWrapping.NoWrap,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 VerticalAlignment = CanvasVerticalAlignment.Top

@@ -49,7 +49,7 @@
                 </ListView.GroupStyle>
                 <ListView.ItemTemplate>
                     <DataTemplate x:DataType="local:ConnectionItemViewModel">
-                        <Grid Padding="4,8" ColumnSpacing="12">
+                        <Grid Padding="4,8" ColumnSpacing="10">
                             <Grid.ContextFlyout>
                                 <MenuFlyout>
                                     <MenuFlyoutItem Text="连接" Click="ConnectMenu_Click">
@@ -72,14 +72,26 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <FontIcon Grid.Column="0" Glyph="&#xE8C8;" FontSize="18"
                                       Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-                                <TextBlock Text="{x:Bind HostPort}" Style="{ThemeResource CaptionTextBlockStyle}"
+                                <TextBlock Text="{x:Bind DisplayHostPort, Mode=OneWay}"
+                                           Style="{ThemeResource CaptionTextBlockStyle}"
                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                             </StackPanel>
+                            <!-- IP 遮罩切换按钮 -->
+                            <Button Grid.Column="2"
+                                    Width="28" Height="28" Padding="0"
+                                    Background="Transparent" BorderBrush="Transparent"
+                                    CornerRadius="4"
+                                    ToolTipService.ToolTip="显示/隐藏 IP 地址"
+                                    Click="ToggleIpVisibility_Click">
+                                <FontIcon Glyph="{x:Bind EyeGlyph, Mode=OneWay}" FontSize="13"
+                                          Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </Button>
                         </Grid>
                     </DataTemplate>
                 </ListView.ItemTemplate>

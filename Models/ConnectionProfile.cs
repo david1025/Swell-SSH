@@ -32,6 +32,12 @@ namespace SwellSSH.Models
         public int TerminalCols { get; set; } = 120;
         public int TerminalRows { get; set; } = 30;
 
+        /// <summary>
+        /// SSH Keepalive 心跳间隔（秒）。0 = 使用全局设置或关闭。
+        /// 推荐值 30~60，防止 NAT 或防火墙因空闲断开连接。
+        /// </summary>
+        public int KeepAliveIntervalSeconds { get; set; } = 60;
+
         public DateTime LastConnected { get; set; } = DateTime.MinValue;
     }
 }

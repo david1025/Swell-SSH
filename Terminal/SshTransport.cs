@@ -236,6 +236,7 @@ namespace SwellSSH.Terminal
             int port = profile.Port;
             string user = profile.Username;
 
+            SshClient client;
             if (profile.AuthType == "PrivateKey")
             {
                 string keyPath = profile.PrivateKeyPath;
@@ -245,13 +246,21 @@ namespace SwellSSH.Terminal
                     ? new PrivateKeyFile(keyPath)
                     : new PrivateKeyFile(keyPath, passphrase);
 
-                return new SshClient(host, port, user, keyFile);
+                client = new SshClient(host, port, user, keyFile);
             }
             else
             {
                 string password = ConnectionStorage.DecryptSecret(profile.EncryptedPassword);
-                return new SshClient(host, port, user, password);
+                client = new SshClient(host, port, user, password);
             }
+
+            // 应用 Keepalive 心跳（防止 NAT/防火墙空闲断连）
+            if (profile.KeepAliveIntervalSeconds > 0)
+            {
+                client.KeepAliveInterval = TimeSpan.FromSeconds(profile.KeepAliveIntervalSeconds);
+            }
+
+            return client;
         }
 
         // ── Disconnect / Dispose ──────────────────────────────────────────────

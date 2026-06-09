@@ -1,7 +1,11 @@
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Net;
+using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -14,13 +18,40 @@ using SwellSSH.Terminal;
 namespace SwellSSH.Pages
 {
     /// <summary>Simple view-model row for the connection list.</summary>
-    public class ConnectionItemViewModel
+    public class ConnectionItemViewModel : INotifyPropertyChanged
     {
         public ConnectionProfile Profile { get; }
-        public string Name => Profile.Name;
-        public string HostPort => $"{Profile.Username}@{Profile.Host}:{Profile.Port}";
+        public string Name  => Profile.Name;
         public string Group => Profile.Group;
+
+        // ── IP 隐私遮罩 ───────────────────────────────────────────────────────
+        private bool _isIpVisible;
+        public bool IsIpVisible
+        {
+            get => _isIpVisible;
+            set
+            {
+                _isIpVisible = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DisplayHostPort));
+                OnPropertyChanged(nameof(EyeGlyph));
+            }
+        }
+
+        /// <summary>显示给用户的连接地址，可能被遮罩</summary>
+        public string DisplayHostPort =>
+            IsIpVisible
+                ? $"{Profile.Username}@{Profile.Host}:{Profile.Port}"
+                : $"{Profile.Username}@***.***.***.***:{Profile.Port}";
+
+        /// <summary>眼睛图标 Segoe MDL2 字形：打开=E7B3，关闭=E7A8</summary>
+        public string EyeGlyph => IsIpVisible ? "\uE7B3" : "\uE7A8";
+
         public ConnectionItemViewModel(ConnectionProfile profile) => Profile = profile;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void OnPropertyChanged([CallerMemberName] string? name = null)
+            => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
     public class GroupInfoList : System.Collections.Generic.List<object>
@@ -247,6 +278,12 @@ namespace SwellSSH.Pages
                 OpenTerminalTab(vm.Profile);
         }
 
+        private void ToggleIpVisibility_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
+                vm.IsIpVisible = !vm.IsIpVisible;
+        }
+
         private async void EditMenu_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
@@ -464,31 +501,35 @@ namespace SwellSSH.Pages
 
         private async Task<bool> ShowConnectionDialogAsync(ConnectionProfile profile, bool isNew)
         {
-            var nameBox    = new TextBox { Header = "连接名称", Text = profile.Name, PlaceholderText = "My Server" };
-            
+            var nameBox = new TextBox { Header = "连接名称", Text = profile.Name, PlaceholderText = "My Server" };
+
             var existingGroups = Connections.Select(c => c.Group).Distinct().Where(g => !string.IsNullOrEmpty(g)).ToList();
             if (!existingGroups.Contains("默认分组")) existingGroups.Insert(0, "默认分组");
-            var groupCombo = new ComboBox 
-            { 
-                Header = "分组", 
-                IsEditable = true, 
-                ItemsSource = existingGroups, 
-                Text = string.IsNullOrEmpty(profile.Group) ? "默认分组" : profile.Group, 
+            var groupCombo = new ComboBox
+            {
+                Header = "分组",
+                IsEditable = true,
+                ItemsSource = existingGroups,
+                Text = string.IsNullOrEmpty(profile.Group) ? "默认分组" : profile.Group,
                 PlaceholderText = "选择或输入新分组",
-                HorizontalAlignment = HorizontalAlignment.Stretch 
+                HorizontalAlignment = HorizontalAlignment.Stretch
             };
-            var hostBox    = new TextBox { Header = "主机地址", Text = profile.Host, PlaceholderText = "192.168.1.1" };
-            var portBox    = new NumberBox { Header = "端口", Value = profile.Port, Minimum = 1, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
-            var userBox    = new TextBox { Header = "用户名", Text = profile.Username, PlaceholderText = "root" };
-            var authCombo  = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey" }, SelectedItem = profile.AuthType };
-            
+
+            var hostBox = new TextBox { Header = "主机地址", Text = profile.Host, PlaceholderText = "192.168.1.1" };
+            // 主机输入时清除错误状态
+            hostBox.TextChanged += (s, e) => SetFieldError(hostBox, false);
+
+            var portBox = new NumberBox { Header = "端口", Value = profile.Port, Minimum = 1, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+            var userBox = new TextBox { Header = "用户名", Text = profile.Username, PlaceholderText = "root" };
+            userBox.TextChanged += (s, e) => SetFieldError(userBox, false);
+
+            var authCombo = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey" }, SelectedItem = profile.AuthType };
+
             string existingPwd = "";
             if (!string.IsNullOrEmpty(profile.EncryptedPassword))
-            {
                 try { existingPwd = ConnectionStorage.DecryptSecret(profile.EncryptedPassword); } catch { }
-            }
-            var pwdBox     = new PasswordBox { Header = "密码", Password = existingPwd, PlaceholderText = "输入密码", Visibility = profile.AuthType == "Password" ? Visibility.Visible : Visibility.Collapsed };
-            
+
+            var pwdBox = new PasswordBox { Header = "密码", Password = existingPwd, PlaceholderText = "输入密码", Visibility = profile.AuthType == "Password" ? Visibility.Visible : Visibility.Collapsed };
             string currentPwd = existingPwd;
             pwdBox.PasswordChanged += (s, e) => currentPwd = pwdBox.Password;
 
@@ -497,8 +538,27 @@ namespace SwellSSH.Pages
             authCombo.SelectionChanged += (s, e) =>
             {
                 bool isPwd = authCombo.SelectedItem?.ToString() == "Password";
-                pwdBox.Visibility     = isPwd ? Visibility.Visible : Visibility.Collapsed;
+                pwdBox.Visibility = isPwd ? Visibility.Visible : Visibility.Collapsed;
                 keyPathBox.Visibility = isPwd ? Visibility.Collapsed : Visibility.Visible;
+            };
+
+            // ── Keepalive ──────────────────────────────────────────────────────
+            var keepAliveBox = new NumberBox
+            {
+                Header = "Keepalive 间隔（秒，0=关闭）",
+                Value = profile.KeepAliveIntervalSeconds,
+                Minimum = 0,
+                Maximum = 300,
+                SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact
+            };
+
+            // ── 内联错误提示 ───────────────────────────────────────────────────
+            var errorLabel = new TextBlock
+            {
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed),
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Visibility = Visibility.Collapsed
             };
 
             var content = new StackPanel { Spacing = 12, Width = 360 };
@@ -510,15 +570,47 @@ namespace SwellSSH.Pages
             content.Children.Add(authCombo);
             content.Children.Add(pwdBox);
             content.Children.Add(keyPathBox);
+            content.Children.Add(keepAliveBox);
+            content.Children.Add(errorLabel);
 
             var dialog = new ContentDialog
             {
                 XamlRoot = this.XamlRoot,
                 Title = isNew ? "新建连接" : "编辑连接",
-                Content = new ScrollViewer { Content = content, MaxHeight = 500 },
+                Content = new ScrollViewer { Content = content, MaxHeight = 540 },
                 PrimaryButtonText = "保存",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Primary
+            };
+
+            // 保存前校验
+            dialog.PrimaryButtonClick += (s, args) =>
+            {
+                string host = hostBox.Text.Trim();
+                string user = userBox.Text.Trim();
+
+                if (string.IsNullOrEmpty(host))
+                {
+                    args.Cancel = true;
+                    SetFieldError(hostBox, true);
+                    ShowDialogError(errorLabel, "主机地址不能为空");
+                    return;
+                }
+                if (!IsValidHost(host))
+                {
+                    args.Cancel = true;
+                    SetFieldError(hostBox, true);
+                    ShowDialogError(errorLabel, "主机地址格式不正确，请输入合法的 IPv4、IPv6 或域名\n示例：192.168.1.1 / [::1] / my-server.example.com");
+                    return;
+                }
+                if (string.IsNullOrEmpty(user))
+                {
+                    args.Cancel = true;
+                    SetFieldError(userBox, true);
+                    ShowDialogError(errorLabel, "用户名不能为空");
+                    return;
+                }
+                errorLabel.Visibility = Visibility.Collapsed;
             };
 
             if (await dialog.ShowAsync() != ContentDialogResult.Primary) return false;
@@ -529,6 +621,7 @@ namespace SwellSSH.Pages
             profile.Port     = (int)portBox.Value;
             profile.Username = userBox.Text.Trim();
             profile.AuthType = authCombo.SelectedItem?.ToString() ?? "Password";
+            profile.KeepAliveIntervalSeconds = double.IsNaN(keepAliveBox.Value) ? 0 : (int)keepAliveBox.Value;
 
             if (profile.AuthType == "Password" && !string.IsNullOrEmpty(currentPwd))
                 profile.EncryptedPassword = ConnectionStorage.EncryptSecret(currentPwd);
@@ -537,6 +630,89 @@ namespace SwellSSH.Pages
                 profile.PrivateKeyPath = keyPathBox.Text.Trim();
 
             return true;
+        }
+
+        // ── 字段错误高亮 ──────────────────────────────────────────────────────
+
+        private static void SetFieldError(Control ctrl, bool hasError)
+        {
+            if (hasError)
+                ctrl.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+            else
+                ctrl.ClearValue(Control.BorderBrushProperty);
+        }
+
+        private static void ShowDialogError(TextBlock label, string message)
+        {
+            label.Text = message;
+            label.Visibility = Visibility.Visible;
+        }
+
+        // ── 主机地址校验 ──────────────────────────────────────────────────────
+
+        private static bool IsValidHost(string host)
+        {
+            if (string.IsNullOrWhiteSpace(host)) return false;
+            host = host.Trim();
+
+            // host:port 格式（非 IPv6）
+            if (host.Contains(':') && !host.Contains(']'))
+            {
+                if (host.Count(c => c == ':') == 1)
+                {
+                    var parts = host.Split(':');
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int p) && p >= 0 && p <= 65535)
+                        host = parts[0];
+                }
+            }
+
+            // 去掉 IPv6 括号 [::1] → ::1
+            if (host.StartsWith('[') && host.EndsWith(']'))
+                host = host[1..^1];
+
+            return IsValidIpv4(host) || IsValidIpv6(host) || IsValidDomain(host);
+        }
+
+        private static bool IsValidIpv4(string addr)
+        {
+            if (addr.Count(c => c == '.') != 3) return false;
+            var parts = addr.Split('.');
+            if (parts.Length != 4) return false;
+            foreach (var part in parts)
+            {
+                if (string.IsNullOrEmpty(part)) return false;
+                foreach (char c in part)
+                    if (c < '0' || c > '9') return false;
+                if (part.Length > 1 && part[0] == '0') return false;
+                if (!int.TryParse(part, out int num) || num < 0 || num > 255) return false;
+            }
+            return true;
+        }
+
+        private static bool IsValidIpv6(string addr)
+        {
+            if (IsValidIpv4(addr)) return false;
+            return IPAddress.TryParse(addr, out var ip)
+                && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6;
+        }
+
+        private static bool IsValidDomain(string addr)
+        {
+            if (addr.Equals("localhost", StringComparison.OrdinalIgnoreCase)) return true;
+            if (addr.Length > 253) return false;
+            if (addr.StartsWith('.') || addr.EndsWith('.') || addr.Contains("..")) return false;
+            var labels = addr.Split('.');
+            if (labels.Length < 2) return false;
+            var labelPattern = new Regex(@"^[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?$");
+            foreach (var label in labels)
+            {
+                if (string.IsNullOrEmpty(label) || label.Length > 63) return false;
+                if (label.Length == 1) { if (!char.IsLetterOrDigit(label[0])) return false; }
+                else if (!labelPattern.IsMatch(label)) return false;
+                if (label.StartsWith('-') || label.EndsWith('-')) return false;
+            }
+            var tld = labels[^1];
+            return tld.Length >= 2 && tld.Any(char.IsLetter);
         }
     }
 }

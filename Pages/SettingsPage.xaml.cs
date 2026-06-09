@@ -57,7 +57,14 @@ namespace SwellSSH.Pages
         private void ApplyToUi(TerminalSettings s)
         {
             FontFamilyCombo.ItemsSource = FontFamilies;
-            FontFamilyCombo.SelectedItem = s.FontFamily;
+            foreach (var font in FontFamilies)
+            {
+                if (font == s.FontFamily)
+                {
+                    FontFamilyCombo.SelectedItem = font;
+                    break;
+                }
+            }
             if (FontFamilyCombo.SelectedItem == null)
             {
                 FontFamilyCombo.SelectedItem = "Consolas";
@@ -72,7 +79,19 @@ namespace SwellSSH.Pages
                     break;
                 }
             }
-            BackdropCombo.SelectedItem = s.BackdropType;
+            
+            foreach (var backdrop in BackdropTypes)
+            {
+                if (backdrop == s.BackdropType)
+                {
+                    BackdropCombo.SelectedItem = backdrop;
+                    break;
+                }
+            }
+            if (BackdropCombo.SelectedItem == null)
+            {
+                BackdropCombo.SelectedItem = BackdropTypes[0]; // Fallback to Mica
+            }
             CursorBlinkToggle.IsOn = s.CursorBlink;
             MinimizeOnCloseToggle.IsOn = s.MinimizeOnClose;
 

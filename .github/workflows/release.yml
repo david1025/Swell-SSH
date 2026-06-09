@@ -62,6 +62,8 @@ jobs:
           dotnet publish SwellSSH.Updater/SwellSSH.Updater.csproj
           -c Release
           -r ${{ matrix.rid }}
+          -p:PublishSingleFile=true
+          -p:SelfContained=true
           -p:Version=${{ steps.ver.outputs.version }}
 
       - name: Verify exe produced

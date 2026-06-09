@@ -6,7 +6,6 @@
     <AssemblyName>SwellSSH.Updater</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Title>SwellSSH Updater</Title>

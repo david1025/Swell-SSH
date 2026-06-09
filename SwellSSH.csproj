@@ -23,13 +23,22 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Version>0.2.1</Version>
+    <Version>0.2.3</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="SwellSSH.Updater\**" />
     <Content Remove="SwellSSH.Updater\**" />
     <None Remove="SwellSSH.Updater\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Ensure Updater builds and copies to output directory even during local debug -->
+    <ProjectReference Include="SwellSSH.Updater\SwellSSH.Updater.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>Content</OutputItemType>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </ProjectReference>
   </ItemGroup>
 
   <ItemGroup>

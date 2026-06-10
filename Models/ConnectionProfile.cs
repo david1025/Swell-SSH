@@ -18,6 +18,9 @@ namespace SwellSSH.Models
         /// <summary>Group/Folder for UI organization</summary>
         public string Group { get; set; } = "默认分组";
 
+        /// <summary>Indicates if this connection is starred/favorited.</summary>
+        public bool IsFavorite { get; set; } = false;
+
         /// <summary>Password or PrivateKey</summary>
         public string AuthType { get; set; } = "Password";
 

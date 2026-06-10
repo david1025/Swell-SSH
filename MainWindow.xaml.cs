@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using WinUIEx;
 using SwellSSH.Pages;
 using SwellSSH.Services;
+using SwellSSH.Models;
 
 namespace SwellSSH
 {
@@ -22,6 +23,9 @@ namespace SwellSSH
         private ElementTheme _currentTheme = ElementTheme.Default;
 
         private readonly ConnectionStorage _storage = new();
+
+        // BUG-04: 缓存 MinimizeOnClose 设置，避免 关闭事件里异步读取磁盘
+        private bool _minimizeOnClose = true; // 默认安全化到托盘
 
         public MainWindow()
         {
@@ -85,13 +89,20 @@ namespace SwellSSH
 
         // ── Settings persistence ─────────────────────────────────────────────
 
-        private async Task ApplySavedSettingsAsync()
+        public async Task ApplySavedSettingsAsync()
         {
             var settings = await _storage.LoadSettingsAsync();
+            
+            if (!settings.OnboardingCompleted && AppOnboardingHost.Visibility != Visibility.Visible)
+            {
+                ShowOnboarding();
+            }
 
             var theme = settings.ColorScheme == "Default Light"
                 ? ElementTheme.Light
-                : ElementTheme.Dark;
+                : settings.ColorScheme == "System" 
+                    ? ElementTheme.Default 
+                    : ElementTheme.Dark;
 
             SetTheme(theme);
 
@@ -101,9 +112,21 @@ namespace SwellSSH
                 "None"    => null,
                 _         => new Microsoft.UI.Xaml.Media.MicaBackdrop()
             };
+
+            // BUG-04: 缓存 MinimizeOnClose，让 ConfigureTray 可以同步读取
+            _minimizeOnClose = settings.MinimizeOnClose;
+
+            // 设置页保存后通知主窗口同步
+            TerminalSettings.GlobalSettingsChanged += OnGlobalSettingsChanged;
         }
 
-        // ── Navigation ───────────────────────────────────────────────────────
+        // BUG-04: 设置页保存时同步更新缓存值
+        private void OnGlobalSettingsChanged(TerminalSettings settings)
+        {
+            _minimizeOnClose = settings.MinimizeOnClose;
+        }
+
+        // ── Navigation ───────────────────────────────────────────────────────────────────────────────
 
         private void MainNav_SelectionChanged(NavigationView sender,
             NavigationViewSelectionChangedEventArgs args)
@@ -121,6 +144,32 @@ namespace SwellSSH
             {
                 ContentFrame.Navigate(pageType);
                 ContentFrame.BackStack.Clear();
+            }
+        }
+
+        public void HideOnboarding()
+        {
+            AppOnboardingHost.Visibility = Visibility.Collapsed;
+            AppOnboardingHost.Content = null;
+        }
+
+        public void ShowOnboarding()
+        {
+            try 
+            {
+                AppOnboardingHost.Content = new Pages.OnboardingControl();
+                AppOnboardingHost.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "ShowOnboarding Error",
+                    Content = ex.ToString(),
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot
+                };
+                _ = dialog.ShowAsync();
             }
         }
 
@@ -158,20 +207,6 @@ namespace SwellSSH
 
         private void UpdateHeaderVisibility(bool isOpen, bool animate = true)
         {
-            if (ThemeToggleButton != null)
-            {
-                if (animate)
-                {
-                    FadeVisual(ThemeToggleButton, isOpen ? 1f : 0f, 250);
-                }
-                else
-                {
-                    ThemeToggleButton.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
-                    var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ThemeToggleButton);
-                    visual.Opacity = isOpen ? 1f : 0f;
-                }
-            }
-
             if (LogoStackPanel != null)
             {
                 if (animate)
@@ -225,15 +260,13 @@ namespace SwellSSH
             }
         }
 
-        private async void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        public async Task ToggleThemeAsync(UIElement sourceElement = null)
         {
             if (_isThemeTransitioning) return;
             _isThemeTransitioning = true;
 
             var actualTheme = GetActualTheme();
             var newTheme = actualTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
-
-            _ = AnimateThemeIconAsync();
 
             if (this.Content is FrameworkElement rootElement && ThemeTransitionOverlay != null)
             {
@@ -261,8 +294,11 @@ namespace SwellSSH
                 Windows.Foundation.Point buttonCenter = new Windows.Foundation.Point(rootElement.ActualWidth - 40, 40);
                 try
                 {
-                    var buttonTransform = ThemeToggleButton.TransformToVisual(rootElement);
-                    buttonCenter = buttonTransform.TransformPoint(new Windows.Foundation.Point(ThemeToggleButton.ActualWidth / 2, ThemeToggleButton.ActualHeight / 2));
+                    if (sourceElement != null)
+                    {
+                        var buttonTransform = sourceElement.TransformToVisual(rootElement);
+                        buttonCenter = buttonTransform.TransformPoint(new Windows.Foundation.Point(sourceElement.ActualSize.X / 2, sourceElement.ActualSize.Y / 2));
+                    }
                 }
                 catch { }
 
@@ -325,95 +361,6 @@ namespace SwellSSH
                 _ = SaveThemeAsync(newTheme);
                 _isThemeTransitioning = false;
             }
-        }
-
-        private async Task AnimateThemeIconAsync()
-        {
-            if (ThemeToggleIcon == null) return;
-
-            var iconVisual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(ThemeToggleIcon);
-            var compositor = iconVisual.Compositor;
-
-            float cx = ThemeToggleIcon.ActualWidth  > 0 ? (float)(ThemeToggleIcon.ActualWidth  / 2) : 8f;
-            float cy = ThemeToggleIcon.ActualHeight > 0 ? (float)(ThemeToggleIcon.ActualHeight / 2) : 8f;
-            iconVisual.CenterPoint = new System.Numerics.Vector3(cx, cy, 0f);
-
-            var easeIn = compositor.CreateCubicBezierEasingFunction(
-                new System.Numerics.Vector2(0.4f, 0f),
-                new System.Numerics.Vector2(1f,   1f));
-
-            var exitBatch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
-
-            var exitSX = compositor.CreateScalarKeyFrameAnimation();
-            exitSX.InsertKeyFrame(0f, 1f);
-            exitSX.InsertKeyFrame(1f, 0f, easeIn);
-            exitSX.Duration = TimeSpan.FromMilliseconds(180);
-
-            var exitSY = compositor.CreateScalarKeyFrameAnimation();
-            exitSY.InsertKeyFrame(0f, 1f);
-            exitSY.InsertKeyFrame(1f, 0f, easeIn);
-            exitSY.Duration = TimeSpan.FromMilliseconds(180);
-
-            var exitRot = compositor.CreateScalarKeyFrameAnimation();
-            exitRot.InsertKeyFrame(0f, 0f);
-            exitRot.InsertKeyFrame(1f, 180f, easeIn);
-            exitRot.Duration = TimeSpan.FromMilliseconds(180);
-
-            iconVisual.StartAnimation("Scale.X", exitSX);
-            iconVisual.StartAnimation("Scale.Y", exitSY);
-            iconVisual.StartAnimation("RotationAngleInDegrees", exitRot);
-
-            var exitTcs = new TaskCompletionSource<bool>();
-            exitBatch.Completed += (s, ev) => exitTcs.TrySetResult(true);
-            exitBatch.End();
-            await exitTcs.Task;
-
-            iconVisual.RotationAngleInDegrees = 180f;
-            iconVisual.Scale = new System.Numerics.Vector3(0f, 0f, 1f);
-            
-            var actualTheme = GetActualTheme();
-            ThemeToggleIcon.Glyph = actualTheme == ElementTheme.Dark ? "\uE706" : "\uE708";
-            if (ThemeToggleButton != null)
-            {
-                ToolTipService.SetToolTip(ThemeToggleButton, actualTheme == ElementTheme.Dark ? "切换至浅色模式" : "切换至深色模式");
-            }
-
-            var easeOut = compositor.CreateCubicBezierEasingFunction(
-                new System.Numerics.Vector2(0f,   0f),
-                new System.Numerics.Vector2(0.2f, 1f));
-
-            var enterBatch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
-
-            var enterSX = compositor.CreateScalarKeyFrameAnimation();
-            enterSX.InsertKeyFrame(0.00f, 0f);
-            enterSX.InsertKeyFrame(0.55f, 1.25f);
-            enterSX.InsertKeyFrame(0.75f, 0.92f);
-            enterSX.InsertKeyFrame(1.00f, 1f);
-            enterSX.Duration = TimeSpan.FromMilliseconds(400);
-
-            var enterSY = compositor.CreateScalarKeyFrameAnimation();
-            enterSY.InsertKeyFrame(0.00f, 0f);
-            enterSY.InsertKeyFrame(0.55f, 1.25f);
-            enterSY.InsertKeyFrame(0.75f, 0.92f);
-            enterSY.InsertKeyFrame(1.00f, 1f);
-            enterSY.Duration = TimeSpan.FromMilliseconds(400);
-
-            var enterRot = compositor.CreateScalarKeyFrameAnimation();
-            enterRot.InsertKeyFrame(0f, 180f);
-            enterRot.InsertKeyFrame(1f, 360f, easeOut);
-            enterRot.Duration = TimeSpan.FromMilliseconds(400);
-
-            iconVisual.StartAnimation("Scale.X", enterSX);
-            iconVisual.StartAnimation("Scale.Y", enterSY);
-            iconVisual.StartAnimation("RotationAngleInDegrees", enterRot);
-
-            var enterTcs = new TaskCompletionSource<bool>();
-            enterBatch.Completed += (s, ev) => enterTcs.TrySetResult(true);
-            enterBatch.End();
-            await enterTcs.Task;
-
-            iconVisual.RotationAngleInDegrees = 0f;
-            iconVisual.Scale = new System.Numerics.Vector3(1f, 1f, 1f);
         }
 
         // ── Nav icon hover animations (ported from AnywhereWinUI) ────────────
@@ -511,8 +458,13 @@ namespace SwellSSH
 
             this.AppWindow.Closing += (_, args) =>
             {
-                args.Cancel = true;
-                HideToTray();
+                // BUG-04: 根据缓存的设置决定是隐藏到托盘还是退出
+                if (_minimizeOnClose)
+                {
+                    args.Cancel = true;
+                    HideToTray();
+                }
+                // 否则不取消事件，窗口正常关闭
             };
         }
 

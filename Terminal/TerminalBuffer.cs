@@ -48,15 +48,24 @@ namespace SwellSSH.Terminal
     /// </summary>
     public sealed class TerminalBuffer : ITerminalActionHandler
     {
+        public readonly object SyncRoot = new object();
         public int Rows { get; private set; }
         public int Cols { get; private set; }
 
-        public List<TerminalRow> Lines { get; } = new();
+        // BUG-01: 改用 O(1) 环形缓冲区，避免 List.RemoveAt(0)/Insert(0) 的 O(n) 开销
+        private CircularLineBuffer _lines = new(1);
+        /// <summary>只读视图，供渲染层按索引访问。</summary>
+        public CircularLineBuffer Lines => _lines;
+
         public List<TerminalRow> Scrollback { get; } = new();
         public int MaxScrollback { get; set; } = 1000;
 
         public int CursorX { get; private set; }
         public int CursorY { get; private set; }
+
+        // BUG-09: DECSTBM 滚动区域（CSI r）
+        private int _scrollTop    = 0;
+        private int _scrollBottom = 0; // 初始化为 Rows-1，在 Resize 里设置
 
         // Current graphic rendition state
         private TerminalCell _currentAttr = new()
@@ -78,78 +87,80 @@ namespace SwellSSH.Terminal
             if (cols < 1) cols = 1;
             if (rows < 1) rows = 1;
 
-            Cols = cols;
-            Rows = rows;
-
-            // Ensure we have enough rows
-            while (Lines.Count < rows)
+            lock (SyncRoot)
             {
-                Lines.Add(new TerminalRow(cols));
-            }
+                Cols = cols;
+                Rows = rows;
 
-            // Remove excess rows if shrinking
-            while (Lines.Count > rows)
-            {
-                Lines.RemoveAt(Lines.Count - 1);
-            }
+                // BUG-01: CircularLineBuffer.Resize 内部一次性重建，O(n) 但只在 resize 时发生
+                _lines.Resize(rows, cols);
 
-            // Ensure all rows have correct width
-            foreach (var line in Lines)
-            {
-                if (line.Cells.Length != cols)
+                // 调整已有行的列宽
+                for (int i = 0; i < _lines.Count; i++)
                 {
-                    var newCells = new TerminalCell[cols];
-                    int copyLen = Math.Min(line.Cells.Length, cols);
-                    Array.Copy(line.Cells, newCells, copyLen);
-                    for (int i = copyLen; i < cols; i++)
+                    var line = _lines[i];
+                    if (line.Cells.Length != cols)
                     {
-                        newCells[i] = new TerminalCell { Char = ' ', FgColor = TerminalCell.DefaultFg, BgColor = TerminalCell.DefaultBg };
+                        var newCells = new TerminalCell[cols];
+                        int copyLen = Math.Min(line.Cells.Length, cols);
+                        Array.Copy(line.Cells, newCells, copyLen);
+                        for (int j = copyLen; j < cols; j++)
+                            newCells[j] = new TerminalCell { Char = ' ', FgColor = TerminalCell.DefaultFg, BgColor = TerminalCell.DefaultBg };
+                        line.Cells = newCells;
                     }
-                    line.Cells = newCells;
                 }
-            }
 
-            if (CursorX >= Cols) CursorX = Cols - 1;
-            if (CursorY >= Rows) CursorY = Rows - 1;
+                if (CursorX >= Cols) CursorX = Cols - 1;
+                if (CursorY >= Rows) CursorY = Rows - 1;
+
+                // BUG-09: Resize 时重置滚动区域到全屏
+                _scrollTop    = 0;
+                _scrollBottom = Rows - 1;
+            }
 
             BufferChanged?.Invoke();
         }
 
         public string GetText(int startX, int startY, int endX, int endY)
         {
-            if (startY < 0) startY = 0;
-            if (endY >= Rows) endY = Rows - 1;
-
-            var sb = new System.Text.StringBuilder();
-
-            for (int y = startY; y <= endY; y++)
+            lock (SyncRoot)
             {
-                var row = Lines[y];
-                int sX = (y == startY) ? Math.Max(0, startX) : 0;
-                int eX = (y == endY) ? Math.Min(Cols - 1, endX) : Cols - 1;
+                if (startY < 0) startY = 0;
+                // BUG-02: 夹紧到实际行数，防止越界
+                if (endY >= _lines.Count) endY = _lines.Count - 1;
+                if (endY < startY) return string.Empty;
 
-                if (sX > eX) continue;
+                var sb = new System.Text.StringBuilder();
 
-                var lineSb = new System.Text.StringBuilder();
-                for (int x = sX; x <= eX; x++)
+                for (int y = startY; y <= endY; y++)
                 {
-                    char c = row.Cells[x].Char;
-                    if (c == '\0') continue; // Skip wide char filler
-                    lineSb.Append(c);
+                    var row = _lines[y];
+                    int sX = (y == startY) ? Math.Max(0, startX) : 0;
+                    int eX = (y == endY) ? Math.Min(Cols - 1, endX) : Cols - 1;
+
+                    if (sX > eX) continue;
+
+                    var lineSb = new System.Text.StringBuilder();
+                    for (int x = sX; x <= eX; x++)
+                    {
+                        char c = row.Cells[x].Char;
+                        if (c == '\0') continue; // Skip wide char filler
+                        lineSb.Append(c);
+                    }
+
+                    // If not the last line of selection, strip trailing spaces and append newline
+                    if (y < endY)
+                    {
+                        sb.AppendLine(lineSb.ToString().TrimEnd());
+                    }
+                    else
+                    {
+                        sb.Append(lineSb.ToString());
+                    }
                 }
 
-                // If not the last line of selection, strip trailing spaces and append newline
-                if (y < endY)
-                {
-                    sb.AppendLine(lineSb.ToString().TrimEnd());
-                }
-                else
-                {
-                    sb.Append(lineSb.ToString());
-                }
+                return sb.ToString();
             }
-
-            return sb.ToString();
         }
 
         // ── ITerminalActionHandler Implementation ─────────────────────────────
@@ -164,8 +175,8 @@ namespace SwellSSH.Terminal
 
                 if (w == 2 && CursorX == Cols - 1)
                 {
-                    Lines[CursorY].Cells[CursorX] = _currentAttr;
-                    Lines[CursorY].Cells[CursorX].Char = ' ';
+                    _lines[CursorY].Cells[CursorX] = _currentAttr;
+                    _lines[CursorY].Cells[CursorX].Char = ' ';
                     CursorX = 0;
                     CursorDown();
                 }
@@ -175,21 +186,21 @@ namespace SwellSSH.Terminal
                     CursorDown();
                 }
 
-                Lines[CursorY].Cells[CursorX] = _currentAttr;
-                Lines[CursorY].Cells[CursorX].Char = c;
+                _lines[CursorY].Cells[CursorX] = _currentAttr;
+                _lines[CursorY].Cells[CursorX].Char = c;
                 CursorX++;
 
                 if (isSurrogate)
                 {
                     i++;
-                    Lines[CursorY].Cells[CursorX] = _currentAttr;
-                    Lines[CursorY].Cells[CursorX].Char = text[i];
+                    _lines[CursorY].Cells[CursorX] = _currentAttr;
+                    _lines[CursorY].Cells[CursorX].Char = text[i];
                     CursorX++;
                 }
                 else if (w == 2)
                 {
-                    Lines[CursorY].Cells[CursorX] = _currentAttr;
-                    Lines[CursorY].Cells[CursorX].Char = '\0';
+                    _lines[CursorY].Cells[CursorX] = _currentAttr;
+                    _lines[CursorY].Cells[CursorX].Char = '\0';
                     CursorX++;
                 }
             }
@@ -246,15 +257,11 @@ namespace SwellSSH.Terminal
         {
             switch (action)
             {
-                case 'M': // Reverse Index (scroll up)
-                    if (CursorY == 0)
-                    {
+                case 'M': // Reverse Index (scroll up) - BUG-09: 尊重滚动区域
+                    if (CursorY == _scrollTop)
                         ScrollUp();
-                    }
-                    else
-                    {
+                    else if (CursorY > 0)
                         CursorY--;
-                    }
                     break;
                 // Add more ESC sequences (like save/restore cursor) as needed
             }
@@ -301,27 +308,57 @@ namespace SwellSSH.Terminal
                 case 'J': // ED - Erase in Display
                     if (p1 == 0) // Below
                     {
-                        Lines[CursorY].Clear(CursorX, Cols - CursorX);
-                        for (int i = CursorY + 1; i < Rows; i++) Lines[i].Clear(0, Cols);
+                        _lines[CursorY].Clear(CursorX, Cols - CursorX);
+                        for (int i = CursorY + 1; i < Rows; i++) _lines[i].Clear(0, Cols);
                     }
                     else if (p1 == 1) // Above
                     {
-                        for (int i = 0; i < CursorY; i++) Lines[i].Clear(0, Cols);
-                        Lines[CursorY].Clear(0, CursorX + 1);
+                        for (int i = 0; i < CursorY; i++) _lines[i].Clear(0, Cols);
+                        _lines[CursorY].Clear(0, CursorX + 1);
                     }
                     else if (p1 == 2) // All
                     {
-                        for (int i = 0; i < Rows; i++) Lines[i].Clear(0, Cols);
+                        for (int i = 0; i < Rows; i++) _lines[i].Clear(0, Cols);
                         CursorX = 0; CursorY = 0;
                     }
                     break;
                 case 'K': // EL - Erase in Line
                     if (p1 == 0) // Right
-                        Lines[CursorY].Clear(CursorX, Cols - CursorX);
+                        _lines[CursorY].Clear(CursorX, Cols - CursorX);
                     else if (p1 == 1) // Left
-                        Lines[CursorY].Clear(0, CursorX + 1);
+                        _lines[CursorY].Clear(0, CursorX + 1);
                     else if (p1 == 2) // All
-                        Lines[CursorY].Clear(0, Cols);
+                        _lines[CursorY].Clear(0, Cols);
+                    break;
+                case 'L': // IL - Insert Lines
+                {
+                    int n = Math.Max(1, p1);
+                    for (int i = 0; i < n; i++)
+                    {
+                        _lines.RemoveLast(); // 移除底部行（超出滚动区）
+                        _lines.AddFirst(new TerminalRow(Cols)); // 在光标行前插入空行
+                    }
+                    break;
+                }
+                case 'M': // DL - Delete Lines
+                {
+                    int n = Math.Max(1, p1);
+                    for (int i = 0; i < n; i++)
+                    {
+                        _lines.RemoveFirst();
+                        _lines.AddLast(new TerminalRow(Cols));
+                    }
+                    break;
+                }
+                case 'r': // DECSTBM - BUG-09: Set Top/Bottom Margins（vim/htop 全屏应用必须）
+                    _scrollTop    = (p1 == 0 ? 1 : p1) - 1;
+                    _scrollBottom = (p2 == 0 ? Rows : p2) - 1;
+                    // 夹紧范围
+                    _scrollTop    = Math.Max(0, Math.Min(_scrollTop, Rows - 2));
+                    _scrollBottom = Math.Max(_scrollTop + 1, Math.Min(_scrollBottom, Rows - 1));
+                    // DECSTBM 后光标移到原点
+                    CursorX = 0;
+                    CursorY = 0;
                     break;
                 case 'm': // SGR - Select Graphic Rendition
                     HandleSgr(parameters);
@@ -343,33 +380,68 @@ namespace SwellSSH.Terminal
         private void CursorDown()
         {
             CursorY++;
-            if (CursorY >= Rows)
+            // BUG-09: 只在到达滚动区域底部时滚动，而非整个屏幕底部
+            if (CursorY > _scrollBottom)
+            {
+                CursorY = _scrollBottom;
+                ScrollDown();
+            }
+            else if (CursorY >= Rows)
             {
                 CursorY = Rows - 1;
-                ScrollDown();
             }
         }
 
         private void ScrollDown()
         {
-            // Remove top row, add empty row at bottom
-            var topRow = Lines[0];
-            Lines.RemoveAt(0);
-            Lines.Add(new TerminalRow(Cols));
+            // BUG-01: CircularLineBuffer.RemoveFirst/AddLast 均 O(1)
+            // BUG-09: 只在滚动区域内操作行，顶部行推入 scrollback
+            var topRow = _lines[_scrollTop];
 
-            Scrollback.Add(topRow);
-            if (Scrollback.Count > MaxScrollback)
+            // 把 _scrollTop..._scrollBottom 范围内的行上移一行
+            // 通过移除 _scrollTop 处并在 _scrollBottom 插入空行来模拟
+            // 对于全屏滚动区域（最常见），_lines.RemoveFirst + AddLast 是 O(1)
+            if (_scrollTop == 0 && _scrollBottom == Rows - 1)
             {
-                int removeCount = Scrollback.Count - MaxScrollback;
-                Scrollback.RemoveRange(0, removeCount);
+                _lines.RemoveFirst();
+                _lines.AddLast(new TerminalRow(Cols));
+
+                // 只有全屏滚动时才推入 scrollback
+                Scrollback.Add(topRow);
+                if (Scrollback.Count > MaxScrollback)
+                {
+                    int removeCount = Scrollback.Count - MaxScrollback;
+                    Scrollback.RemoveRange(0, removeCount);
+                    // BUG-01: TrimExcess 释放 List 底层数组，防止内存碎片
+                    Scrollback.TrimExcess();
+                }
+            }
+            else
+            {
+                // 局部滚动区域：手动移动行（O(region_height)，但 region 通常很小）
+                var removed = _lines[_scrollTop];
+                for (int i = _scrollTop; i < _scrollBottom; i++)
+                    _lines[i] = _lines[i + 1];
+                _lines[_scrollBottom] = new TerminalRow(Cols);
+                _ = removed; // 局部滚动不进 scrollback
             }
         }
 
         private void ScrollUp()
         {
-            // Remove bottom row, add empty row at top
-            Lines.RemoveAt(Rows - 1);
-            Lines.Insert(0, new TerminalRow(Cols));
+            // BUG-09: 在滚动区域内向上滚
+            if (_scrollTop == 0 && _scrollBottom == Rows - 1)
+            {
+                // BUG-01: O(1)
+                _lines.RemoveLast();
+                _lines.AddFirst(new TerminalRow(Cols));
+            }
+            else
+            {
+                for (int i = _scrollBottom; i > _scrollTop; i--)
+                    _lines[i] = _lines[i - 1];
+                _lines[_scrollTop] = new TerminalRow(Cols);
+            }
         }
 
         private void HandleSgr(int[] parameters)

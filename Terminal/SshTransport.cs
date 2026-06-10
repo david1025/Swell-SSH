@@ -98,18 +98,22 @@ namespace SwellSSH.Terminal
                     }
 
                     // ── Host Key Verification (shared for all auth types) ─────
-                    if (HostKeyVerifier != null)
+                    // BUG-10: HostKeyVerifier 为 null 时默认拒绝，而非静默放行（防 MITM）
+                    var verifier = HostKeyVerifier;
+                    _client.HostKeyReceived += (_, e) =>
                     {
-                        var verifier = HostKeyVerifier;
-                        _client.HostKeyReceived += (_, e) =>
+                        if (verifier == null)
                         {
-                            string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
-                            // Block this thread-pool thread while UI dialog is shown
-                            bool trusted = verifier(profile.Host, profile.Port, e.HostKeyName, fp)
-                                .GetAwaiter().GetResult();
-                            e.CanTrust = trusted;
-                        };
-                    }
+                            // 未设置验证器时拒绝连接，强制调用方提供验证逻辑
+                            e.CanTrust = false;
+                            return;
+                        }
+                        string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
+                        // Block this thread-pool thread while UI dialog is shown
+                        bool trusted = verifier(profile.Host, profile.Port, e.HostKeyName, fp)
+                            .GetAwaiter().GetResult();
+                        e.CanTrust = trusted;
+                    };
 
                     _client.Connect(); // agentPipe kept open here — agent signs the challenge
                     _client.ErrorOccurred += OnClientError;

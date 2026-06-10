@@ -732,108 +732,111 @@ else if (settings.ColorScheme == "Termark Light")
 
             var ds = args.DrawingSession;
             var buffer = _session.Buffer;
-            
-            int rows = buffer.Rows;
-            int cols = buffer.Cols;
-            
-            int totalLines = buffer.Scrollback.Count + buffer.Lines.Count;
-            int startLineIndex = Math.Max(0, totalLines - rows - _scrollOffset);
 
-            StringBuilder textChunk = new StringBuilder(cols);
-
-            for (int y = 0; y < rows; y++)
+            lock (buffer.SyncRoot)
             {
-                int absY = startLineIndex + y;
-                TerminalRow? row = null;
+                int rows = buffer.Rows;
+                int cols = buffer.Cols;
+                
+                int totalLines = buffer.Scrollback.Count + buffer.Lines.Count;
+                int startLineIndex = Math.Max(0, totalLines - rows - _scrollOffset);
 
-                if (absY < buffer.Scrollback.Count)
+                StringBuilder textChunk = new StringBuilder(cols);
+
+                for (int y = 0; y < rows; y++)
                 {
-                    row = buffer.Scrollback[absY];
-                }
-                else if (absY - buffer.Scrollback.Count < buffer.Lines.Count)
-                {
-                    row = buffer.Lines[absY - buffer.Scrollback.Count];
-                }
+                    int absY = startLineIndex + y;
+                    TerminalRow? row = null;
 
-                if (row == null || row.Cells == null) continue;
-
-                int startX = 0;
-                TerminalCell currentAttr = row.Cells[0];
-                textChunk.Clear();
-                int chunkLogicalWidth = 0;
-
-                for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
-                {
-                    var cell = row.Cells[x];
-
-                    if (IsCellSelected(x, y + _scrollOffset))
+                    if (absY < buffer.Scrollback.Count)
                     {
-                        cell.BgColor = TerminalCell.SelectionBgMask;
+                        row = buffer.Scrollback[absY];
+                    }
+                    else if (absY - buffer.Scrollback.Count < buffer.Lines.Count)
+                    {
+                        row = buffer.Lines[absY - buffer.Scrollback.Count];
                     }
 
-                    // Draw cursor background block (only if we are not scrolled up)
-                    if (x == buffer.CursorX && y == (buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset) && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
-                    {
-                        if (textChunk.Length > 0 || chunkLogicalWidth > 0)
-                        {
-                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
-                            textChunk.Clear();
-                            chunkLogicalWidth = 0;
-                        }
-                        
-                        var invertedAttr = cell;
-                        invertedAttr.FgColor = (uint)((_defaultBg.A << 24) | (_defaultBg.R << 16) | (_defaultBg.G << 8) | _defaultBg.B);
-                        
-                        string cursorText = cell.Char == '\0' ? "" : cell.Char.ToString();
+                    if (row == null || row.Cells == null) continue;
 
-                        if (_settings.CursorStyle == "Underline")
+                    int startX = 0;
+                    TerminalCell currentAttr = row.Cells[0];
+                    textChunk.Clear();
+                    int chunkLogicalWidth = 0;
+
+                    for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
+                    {
+                        var cell = row.Cells[x];
+
+                        if (IsCellSelected(x, y + _scrollOffset))
                         {
-                            ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
-                                        (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _defaultFg, 2);
-                            DrawChunk(ds, cursorText, x, y, cell, 1);
+                            cell.BgColor = TerminalCell.SelectionBgMask;
                         }
-                        else if (_settings.CursorStyle == "Bar")
+
+                        // Draw cursor background block (only if we are not scrolled up)
+                        if (x == buffer.CursorX && y == (buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset) && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
                         {
-                            ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
-                                        (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _defaultFg, 2);
-                            DrawChunk(ds, cursorText, x, y, cell, 1);
+                            if (textChunk.Length > 0 || chunkLogicalWidth > 0)
+                            {
+                                DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
+                                textChunk.Clear();
+                                chunkLogicalWidth = 0;
+                            }
+                            
+                            var invertedAttr = cell;
+                            invertedAttr.FgColor = (uint)((_defaultBg.A << 24) | (_defaultBg.R << 16) | (_defaultBg.G << 8) | _defaultBg.B);
+                            
+                            string cursorText = cell.Char == '\0' ? "" : cell.Char.ToString();
+
+                            if (_settings.CursorStyle == "Underline")
+                            {
+                                ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
+                                            (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _defaultFg, 2);
+                                DrawChunk(ds, cursorText, x, y, cell, 1);
+                            }
+                            else if (_settings.CursorStyle == "Bar")
+                            {
+                                ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
+                                            (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _defaultFg, 2);
+                                DrawChunk(ds, cursorText, x, y, cell, 1);
+                            }
+                            else
+                            {
+                                ds.FillRectangle((float)(x * _charWidth), (float)(y * _charHeight),
+                                                 (float)_charWidth, (float)_charHeight, _defaultFg);
+                                DrawChunk(ds, cursorText, x, y, invertedAttr, 1);
+                            }
+                            
+                            startX = x + 1;
+                            if (x + 1 < row.Cells.Length) currentAttr = row.Cells[x + 1];
+                            continue;
                         }
-                        else
+
+                        if (cell.FgColor != currentAttr.FgColor || 
+                            cell.BgColor != currentAttr.BgColor ||
+                            cell.IsBold != currentAttr.IsBold)
                         {
-                            ds.FillRectangle((float)(x * _charWidth), (float)(y * _charHeight),
-                                             (float)_charWidth, (float)_charHeight, _defaultFg);
-                            DrawChunk(ds, cursorText, x, y, invertedAttr, 1);
+                            if (textChunk.Length > 0 || chunkLogicalWidth > 0)
+                            {
+                                DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
+                                textChunk.Clear();
+                                chunkLogicalWidth = 0;
+                            }
+                            startX = x;
+                            currentAttr = cell;
                         }
-                        
-                        startX = x + 1;
-                        if (x + 1 < row.Cells.Length) currentAttr = row.Cells[x + 1];
-                        continue;
+
+                        if (cell.Char != '\0')
+                        {
+                            textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
+                        }
+                        chunkLogicalWidth++;
                     }
 
-                    if (cell.FgColor != currentAttr.FgColor || 
-                        cell.BgColor != currentAttr.BgColor ||
-                        cell.IsBold != currentAttr.IsBold)
+                    if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                     {
-                        if (textChunk.Length > 0 || chunkLogicalWidth > 0)
-                        {
-                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
-                            textChunk.Clear();
-                            chunkLogicalWidth = 0;
-                        }
-                        startX = x;
-                        currentAttr = cell;
+                        DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                     }
-
-                    if (cell.Char != '\0')
-                    {
-                        textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
-                    }
-                    chunkLogicalWidth++;
-                }
-
-                if (textChunk.Length > 0 || chunkLogicalWidth > 0)
-                {
-                    DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                 }
             }
         }

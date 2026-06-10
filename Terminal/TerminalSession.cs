@@ -71,7 +71,10 @@ namespace SwellSSH.Terminal
             Transport.DataReceived += bytes =>
             {
                 RawDataReceived?.Invoke(bytes);
-                Parser.Feed(bytes);
+                lock (Buffer.SyncRoot)
+                {
+                    Parser.Feed(bytes);
+                }
             };
 
             Transport.Disconnected += ex =>
@@ -105,7 +108,18 @@ namespace SwellSSH.Terminal
             }
             catch (System.Net.Sockets.SocketException ex)
             {
-                LastError = $"无法连接到服务器：{ex.Message}";
+                if (ex.SocketErrorCode == System.Net.Sockets.SocketError.AccessDenied)
+                {
+                    LastError = $"网络访问被拒绝 (10013)：如果这是纯 IPv6 服务器，请检查您的本地网络是否支持 IPv6；否则请检查防火墙/杀毒软件是否拦截了连接。";
+                }
+                else if (ex.SocketErrorCode == System.Net.Sockets.SocketError.HostNotFound)
+                {
+                    LastError = $"无法解析主机名：请检查服务器地址是否拼写正确，且没有多余的空格。";
+                }
+                else
+                {
+                    LastError = $"无法连接到服务器：{ex.Message}";
+                }
                 State = SessionState.Error;
             }
             catch (Exception ex)

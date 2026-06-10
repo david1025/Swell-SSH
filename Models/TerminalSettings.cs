@@ -27,6 +27,8 @@ namespace SwellSSH.Models
 
         public int ScrollbackLines { get; set; } = 1000;
 
+        public bool OnboardingCompleted { get; set; } = false;
+
         public static event System.Action<TerminalSettings>? GlobalSettingsChanged;
         public static void NotifyGlobalSettingsChanged(TerminalSettings settings)
         {

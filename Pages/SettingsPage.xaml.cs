@@ -58,7 +58,14 @@ namespace SwellSSH.Pages
         {
             // _isLoading 已在构造函数里设为 true，这里无需重复设置
             _settings = await _storage.LoadSettingsAsync();
+            
+            _appliedTheme = _settings.ColorScheme == "Default Light" ? ElementTheme.Light : ElementTheme.Dark;
+            _appliedBackdropType = _settings.BackdropType;
+
             ApplyToUi(_settings);
+            
+            // 给 UI 事件一点处理时间，防止 SelectedIndex 异步触发触发 SaveAndApplySettings
+            await Task.Delay(50);
             _isLoading = false;
         }
 
@@ -75,15 +82,11 @@ namespace SwellSSH.Pages
 
             FontSizeSlider.Value = s.FontSize;
 
-            int schemeIdx = System.Array.FindIndex(ColorSchemes, cs => cs.Name == s.ColorScheme);
-            ColorSchemeCombo.SelectedIndex = schemeIdx >= 0 ? schemeIdx : 0;
+
 
             // BackdropTypes = { "Mica", "Acrylic", "None" }
             int backdropIdx = System.Array.IndexOf(BackdropTypes, s.BackdropType);
-            BackdropCombo.SelectedIndex = backdropIdx >= 0 ? backdropIdx : 0;
-
-            CursorBlinkToggle.IsOn = s.CursorBlink;
-            MinimizeOnCloseToggle.IsOn = s.MinimizeOnClose;
+            BackdropSegmented.SelectedIndex = backdropIdx >= 0 ? backdropIdx : 0;
 
             switch (s.CursorStyle)
             {
@@ -109,18 +112,10 @@ namespace SwellSSH.Pages
             }
         }
 
-        private void ColorSchemeCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (ColorSchemeCombo.SelectedItem is ColorSchemeItem scheme)
-            {
-                _settings.ColorScheme = scheme.Name;
-                SaveAndApplySettings();
-            }
-        }
 
-        private void BackdropCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void BackdropSegmented_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (BackdropCombo.SelectedItem is string backdrop)
+            if (BackdropSegmented.SelectedItem is CommunityToolkit.WinUI.Controls.SegmentedItem item && item.Content is string backdrop)
             {
                 _settings.BackdropType = backdrop;
                 SaveAndApplySettings();
@@ -136,17 +131,7 @@ namespace SwellSSH.Pages
             }
         }
 
-        private void CursorBlinkToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            _settings.CursorBlink = CursorBlinkToggle.IsOn;
-            SaveAndApplySettings();
-        }
 
-        private void MinimizeOnCloseToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            _settings.MinimizeOnClose = MinimizeOnCloseToggle.IsOn;
-            SaveAndApplySettings();
-        }
 
         private async void SaveAndApplySettings()
         {
@@ -191,12 +176,11 @@ namespace SwellSSH.Pages
             bool isSearching = !string.IsNullOrEmpty(query);
 
             // 不搜索时恢复全部显示
-            AboutSeparator.Visibility = isSearching ? Visibility.Collapsed : Visibility.Visible;
 
             if (!isSearching)
             {
-                FontSection.Visibility = ColorSchemeSection.Visibility = CursorSection.Visibility =
-                    BackdropSection.Visibility = BehaviorSection.Visibility = AboutSection.Visibility =
+                FontSection.Visibility = CursorSection.Visibility =
+                    BackdropSection.Visibility = AboutSection.Visibility =
                     Visibility.Visible;
                 NoResultsText.Visibility = Visibility.Collapsed;
                 return;
@@ -206,11 +190,8 @@ namespace SwellSSH.Pages
             var sections = new (UIElement Section, string[] Keywords)[]
             {
                 (FontSection, new[] { "终端字体", "字体", "字号", "font", "consolas", "cascadia", "大小", "size" }),
-                (ColorSchemeSection, new[] { "配色方案", "配色", "主题", "颜色", "color", "scheme", "theme",
-                    "dracula", "nord", "mocha", "catppuccin", "tokyo", "night", "gruvbox", "solarized", "one dark", "light" }),
                 (CursorSection, new[] { "光标样式", "光标", "cursor", "闪烁", "blink", "块状", "block", "下划线", "underline", "竖线", "bar" }),
                 (BackdropSection, new[] { "窗口背景", "背景", "材质", "mica", "acrylic", "backdrop", "透明", "毛玻璃" }),
-                (BehaviorSection, new[] { "行为", "托盘", "关闭", "最小化", "minimize", "tray", "behavior" }),
                 (AboutSection, new[] { "关于", "版本", "更新", "about", "version", "update", "swellssh" }),
             };
 
@@ -253,7 +234,7 @@ namespace SwellSSH.Pages
                 var confirmDialog = new ContentDialog
                 {
                     Title = "发现新版本",
-                    Content = $"是否将 SwellSSH 更新至 {info.TagName}？\n\n下载完成后应用将自动重启以完成更新。",
+                    Content = $"是否将 Swell SSH 更新至 {info.TagName}？\n\n下载完成后应用将自动重启以完成更新。",
                     PrimaryButtonText = "确认更新",
                     CloseButtonText = "取消",
                     DefaultButton = ContentDialogButton.Primary,
@@ -270,7 +251,7 @@ namespace SwellSSH.Pages
 
                 var progressDialog = new ContentDialog
                 {
-                    Title    = "正在更新 SwellSSH",
+                    Title    = "正在更新 Swell SSH",
                     Content  = stack,
                     XamlRoot = this.XamlRoot
                 };
@@ -343,6 +324,31 @@ namespace SwellSSH.Pages
             {
                 CheckAppUpdateButton.IsEnabled = true;
                 CheckAppUpdateButton.Content   = "检查更新";
+            }
+        }
+
+        private async void ResetOnboardingButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _settings.OnboardingCompleted = false;
+                await _storage.SaveSettingsAsync(_settings);
+                
+                if (MainWindow.Instance != null)
+                {
+                    MainWindow.Instance.ShowOnboarding();
+                }
+            }
+            catch (Exception ex)
+            {
+                var dialog = new ContentDialog
+                {
+                    Title = "Reset Error",
+                    Content = ex.ToString(),
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await dialog.ShowAsync();
             }
         }
     }

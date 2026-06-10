@@ -57,6 +57,26 @@ namespace SwellSSH.Pages
         public string Group => Profile.Group;
         public string Name => Profile.Name;
 
+        public bool IsFavorite
+        {
+            get => Profile.IsFavorite;
+            set
+            {
+                if (Profile.IsFavorite != value)
+                {
+                    Profile.IsFavorite = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FavoriteMenuText));
+                    OnPropertyChanged(nameof(FavoriteMenuIcon));
+                    OnPropertyChanged(nameof(FavoriteVisibility));
+                }
+            }
+        }
+
+        public string FavoriteMenuText => IsFavorite ? "取消收藏" : "加入收藏";
+        public string FavoriteMenuIcon => IsFavorite ? "\uE735" : "\uE734"; // Solid star / Outline star
+        public Microsoft.UI.Xaml.Visibility FavoriteVisibility => IsFavorite ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
         private bool _isIpVisible;
         public bool IsIpVisible
         {
@@ -288,7 +308,9 @@ namespace SwellSSH.Pages
             foreach (var g in grouped)
             {
                 var groupVm = new ConnectionGroupViewModel(g.Key);
-                foreach (var p in g)
+                // Sort favorites to the top, then by name
+                var sortedGroup = g.OrderByDescending(p => p.IsFavorite).ThenBy(p => p.Name);
+                foreach (var p in sortedGroup)
                 {
                     var itemVm = new ConnectionItemViewModel(p);
                     groupVm.Children.Add(itemVm);
@@ -405,6 +427,54 @@ namespace SwellSSH.Pages
         {
             if (ConnectionListView.SelectedItem is ConnectionItemViewModel vm)
                 await DeleteProfileAsync(vm);
+        }
+
+        private async void ToggleFavoriteMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
+            {
+                vm.IsFavorite = !vm.IsFavorite;
+                var profiles = await _storage.LoadConnectionsAsync();
+                var p = profiles.FirstOrDefault(x => x.Id == vm.Profile.Id);
+                if (p != null)
+                {
+                    p.IsFavorite = vm.IsFavorite;
+                    await _storage.SaveConnectionsAsync(profiles);
+                    await LoadConnectionsAsync(); // Re-sort and re-render
+                }
+            }
+        }
+
+        private void PaneSettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SettingsPaneFrame.Content == null)
+            {
+                SettingsPaneFrame.Navigate(typeof(SettingsPage));
+            }
+            SettingsPaneHost.Visibility = Visibility.Visible;
+            TerminalSplitView.Visibility = Visibility.Collapsed;
+        }
+
+        private void CloseSettingsPane_Click(object sender, RoutedEventArgs e)
+        {
+            SettingsPaneHost.Visibility = Visibility.Collapsed;
+            TerminalSplitView.Visibility = Visibility.Visible;
+        }
+
+        private void LeftHeaderContainer_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (RightSettingsHeader != null)
+            {
+                RightSettingsHeader.Height = e.NewSize.Height;
+            }
+        }
+
+        private async void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainWindow.Instance != null)
+            {
+                await MainWindow.Instance.ToggleThemeAsync(sender as UIElement);
+            }
         }
 
         // ── Context Menu handlers ─────────────────────────────────────────────

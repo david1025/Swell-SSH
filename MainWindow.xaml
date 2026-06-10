@@ -3,7 +3,7 @@
     x:Class="SwellSSH.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="SwellSSH">
+    Title="Swell SSH">
 
     <Window.SystemBackdrop>
         <MicaBackdrop />
@@ -74,44 +74,11 @@
                 <Frame x:Name="ContentFrame" Margin="0,48,0,0" />
             </NavigationView>
 
-            <!-- Logo area (shown when pane is closed) -->
-            <StackPanel x:Name="LogoStackPanel"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Top"
-                        Margin="48,0,0,0"
-                        Height="48" Spacing="8"
-                        HorizontalAlignment="Left"
-                        IsHitTestVisible="False">
-                <Image x:Name="TitleBarLogo"
-                       Source="ms-appx:///Assets/tray-icon.ico"
-                       Width="18" Height="18"
-                       VerticalAlignment="Center" Stretch="Uniform"/>
-                <TextBlock Text="SwellSSH"
-                           FontSize="12" FontWeight="SemiBold"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-
-            <!-- Theme Toggle Button: aligned to the right side of the 240px navigation drawer -->
-            <Button x:Name="ThemeToggleButton"
+            <!-- Global Sidebar Toggle Button: aligned to the left after hamburger menu -->
+            <Button x:Name="GlobalToggleSidebarButton"
                     VerticalAlignment="Top" HorizontalAlignment="Left"
                     Width="36" Height="36"
-                    Margin="192,6,0,0"
-                    CornerRadius="4"
-                    Background="Transparent" BorderBrush="Transparent"
-                    Padding="0"
-                    Click="ThemeToggleButton_Click" ToolTipService.ToolTip="切换应用主题">
-                <FontIcon x:Name="ThemeToggleIcon" Glyph="&#xE706;" FontSize="18"/>
-            </Button>
-
-            <!-- Drag region for custom title bar -->
-            <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
-                  VerticalAlignment="Top" Margin="240,0,180,0"/>
-
-            <!-- Global Sidebar Toggle Button: aligned to the right next to caption buttons -->
-            <Button x:Name="GlobalToggleSidebarButton"
-                    VerticalAlignment="Top" HorizontalAlignment="Right"
-                    Width="36" Height="36"
-                    Margin="0,6,140,0"
+                    Margin="48,6,0,0"
                     CornerRadius="4"
                     Background="Transparent" BorderBrush="Transparent"
                     Padding="0"
@@ -119,6 +86,31 @@
                 <FontIcon Glyph="&#xE90D;" FontSize="14"/>
             </Button>
 
+            <!-- Logo area (shown when pane is closed) -->
+            <StackPanel x:Name="LogoStackPanel"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Top"
+                        Margin="92,0,0,0"
+                        Height="48" Spacing="8"
+                        HorizontalAlignment="Left"
+                        IsHitTestVisible="False">
+                <Image x:Name="TitleBarLogo"
+                       Source="ms-appx:///Assets/tray-icon.ico"
+                       Width="18" Height="18"
+                       VerticalAlignment="Center" Stretch="Uniform"/>
+                <TextBlock Text="Swell SSH"
+                           FontSize="12" FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Drag region for custom title bar -->
+            <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
+                  VerticalAlignment="Top" Margin="240,0,140,0"/>
+
         </Grid>
+        <!-- 新手引导遮罩层：懒加载，首次需要时才由代码注入 OnboardingControl 实例 -->
+        <ContentControl x:Name="AppOnboardingHost" Visibility="Collapsed" Canvas.ZIndex="100"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
     </Grid>
 </Window>

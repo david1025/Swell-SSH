@@ -88,6 +88,8 @@ namespace SwellSSH.Services
         {
             private readonly ConnectionProfile _profile;
             private readonly ServerMonitorService _parent;
+            // BUG-07: 单例复用，避免每次重连都读磁盘文件
+            private readonly KnownHostsService _knownHosts = new();
             private CancellationTokenSource? _cts;
             private SshClient? _client;
             private long _prevIdle, _prevTotal;   // for CPU delta
@@ -161,8 +163,8 @@ namespace SwellSSH.Services
                                     _client.HostKeyReceived += (_, e) =>
                                     {
                                         string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
-                                        var verifier = new KnownHostsService();
-                                        bool? trusted = verifier.Check(_profile.Host, _profile.Port, e.HostKeyName, fp);
+                                        // BUG-07: 复用字段实例，不再每次 new KnownHostsService()
+                                        bool? trusted = _knownHosts.Check(_profile.Host, _profile.Port, e.HostKeyName, fp);
                                         e.CanTrust = trusted == true;
                                     };
 

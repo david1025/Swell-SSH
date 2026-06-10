@@ -114,6 +114,41 @@ namespace SwellSSH.Terminal
                     _client.Connect(); // agentPipe kept open here — agent signs the challenge
                     _client.ErrorOccurred += OnClientError;
 
+                    // ── Setup Port Forwarding ───────────────────────────────────────
+                    if (profile.PortForwards != null)
+                    {
+                        foreach (var rule in profile.PortForwards)
+                        {
+                            if (!rule.Enabled) continue;
+                            try
+                            {
+                                ForwardedPort? port = null;
+                                switch (rule.Type)
+                                {
+                                    case PortForwardType.Local:
+                                        port = new ForwardedPortLocal(rule.BindAddress, (uint)rule.BindPort, rule.TargetHost, (uint)rule.TargetPort);
+                                        break;
+                                    case PortForwardType.Remote:
+                                        port = new ForwardedPortRemote(System.Net.IPAddress.Any.ToString(), (uint)rule.BindPort, rule.TargetHost, (uint)rule.TargetPort);
+                                        break;
+                                    case PortForwardType.Dynamic:
+                                        port = new ForwardedPortDynamic(rule.BindAddress, (uint)rule.BindPort);
+                                        break;
+                                }
+                                if (port != null)
+                                {
+                                    _client.AddForwardedPort(port);
+                                    port.Exception += (s, e) => { System.Diagnostics.Debug.WriteLine($"[PortForward] Exception: {e.Exception.Message}"); };
+                                    port.Start();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[PortForward] Failed to bind ({rule.Type} {rule.BindPort}): {ex.Message}");
+                            }
+                        }
+                    }
+
                     _shell = _client.CreateShellStream(
                         terminalName: "xterm-256color",
                         columns: (uint)cols,

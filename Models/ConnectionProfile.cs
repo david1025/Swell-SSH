@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SwellSSH.Models
 {
@@ -45,5 +46,8 @@ namespace SwellSSH.Models
         public int MonitorIntervalSeconds { get; set; } = 10;
 
         public DateTime LastConnected { get; set; } = DateTime.MinValue;
+
+        /// <summary>List of port forwarding rules for this profile.</summary>
+        public List<PortForwardRule> PortForwards { get; set; } = new();
     }
 }

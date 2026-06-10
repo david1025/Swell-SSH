@@ -449,6 +449,7 @@ namespace SwellSSH.Pages
             var pwdDialog = new ContentDialog
             {
                 XamlRoot         = this.XamlRoot,
+                RequestedTheme   = this.ActualTheme,
                 Title            = "🔑 输入密码",
                 Content          = promptContent,
                 PrimaryButtonText  = "连接",
@@ -559,6 +560,7 @@ namespace SwellSSH.Pages
             var dialog = new ContentDialog
             {
                 XamlRoot = this.XamlRoot,
+                RequestedTheme = this.ActualTheme,
                 Title = "删除连接",
                 Content = $"确定要删除「{vm.Name}」吗？",
                 PrimaryButtonText = "删除",
@@ -757,6 +759,7 @@ namespace SwellSSH.Pages
                     var dialog = new ContentDialog
                     {
                         XamlRoot = this.XamlRoot,
+                        RequestedTheme = this.ActualTheme,
                         Title = "🔑 未知主机",
                         Content = new StackPanel { Spacing = 8, Children =
                         {
@@ -789,6 +792,7 @@ namespace SwellSSH.Pages
                     var dialog = new ContentDialog
                     {
                         XamlRoot = this.XamlRoot,
+                        RequestedTheme = this.ActualTheme,
                         Title = "⚠️ 主机指纹已变更！",
                         Content = new StackPanel { Spacing = 8, Children =
                         {
@@ -923,6 +927,85 @@ namespace SwellSSH.Pages
             monitorSwitch.Toggled += (_, _) =>
                 monitorInterval.Visibility = monitorSwitch.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
+            // ── Port Forwarding ──────────────────────────────────────────────────────
+            var pfExpander = new Expander { Header = "端口转发 (Port Forwarding)", HorizontalAlignment = HorizontalAlignment.Stretch };
+            var pfStack = new StackPanel { Spacing = 8 };
+            var pfList = new StackPanel { Spacing = 4 };
+            var pfRules = profile.PortForwards != null ? new System.Collections.Generic.List<PortForwardRule>(profile.PortForwards) : new System.Collections.Generic.List<PortForwardRule>();
+
+            void RenderPfRules()
+            {
+                pfList.Children.Clear();
+                foreach (var rule in pfRules)
+                {
+                    var row = new Grid { ColumnSpacing = 8, Margin = new Thickness(0, 4, 0, 4) };
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    
+                    string desc = rule.Type switch {
+                        PortForwardType.Local => $"Local: {rule.BindPort} -> {rule.TargetHost}:{rule.TargetPort}",
+                        PortForwardType.Remote => $"Remote: {rule.BindPort} <- {rule.TargetHost}:{rule.TargetPort}",
+                        PortForwardType.Dynamic => $"Dynamic: {rule.BindPort} (SOCKS5)",
+                        _ => "Unknown"
+                    };
+                    
+                    var txt = new TextBlock { Text = desc, VerticalAlignment = VerticalAlignment.Center, FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"), FontSize = 12 };
+                    Grid.SetColumn(txt, 0);
+                    
+                    var delBtn = new Button { Content = "删除", Padding = new Thickness(8,2,8,2) };
+                    delBtn.Click += (_, _) => { pfRules.Remove(rule); RenderPfRules(); };
+                    Grid.SetColumn(delBtn, 1);
+                    
+                    row.Children.Add(txt);
+                    row.Children.Add(delBtn);
+                    pfList.Children.Add(row);
+                }
+            }
+            RenderPfRules();
+
+            var addPfBtn = new Button { Content = "+ 添加规则", HorizontalAlignment = HorizontalAlignment.Right };
+            
+            var typeCombo = new ComboBox { Header = "类型", ItemsSource = new[] { "Local", "Remote", "Dynamic" }, SelectedIndex = 0 };
+            var bindPortBox = new NumberBox { Header = "本地/远程绑定端口", Value = 8080, Minimum = 1, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+            var targetHostBox = new TextBox { Header = "目标主机 (Target Host)", Text = "127.0.0.1", PlaceholderText = "127.0.0.1" };
+            var targetPortBox = new NumberBox { Header = "目标端口 (Target Port)", Value = 80, Minimum = 1, Maximum = 65535, SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact };
+
+            typeCombo.SelectionChanged += (s, ev) =>
+            {
+                bool isDynamic = typeCombo.SelectedIndex == 2;
+                targetHostBox.Visibility = isDynamic ? Visibility.Collapsed : Visibility.Visible;
+                targetPortBox.Visibility = isDynamic ? Visibility.Collapsed : Visibility.Visible;
+            };
+
+            var subContent = new StackPanel { Spacing = 8, Width = 250 };
+            subContent.Children.Add(typeCombo);
+            subContent.Children.Add(bindPortBox);
+            subContent.Children.Add(targetHostBox);
+            subContent.Children.Add(targetPortBox);
+
+            var confirmAddBtn = new Button { Content = "确定添加", HorizontalAlignment = HorizontalAlignment.Right, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+            subContent.Children.Add(confirmAddBtn);
+
+            var flyout = new Flyout { Content = subContent };
+            addPfBtn.Flyout = flyout;
+
+            confirmAddBtn.Click += (s, e) =>
+            {
+                pfRules.Add(new PortForwardRule
+                {
+                    Type = (PortForwardType)typeCombo.SelectedIndex,
+                    BindPort = (int)Math.Clamp(bindPortBox.Value, 1, 65535),
+                    TargetHost = targetHostBox.Text.Trim(),
+                    TargetPort = (int)Math.Clamp(targetPortBox.Value, 1, 65535)
+                });
+                RenderPfRules();
+                flyout.Hide();
+            };
+
+            pfStack.Children.Add(pfList);
+            pfStack.Children.Add(addPfBtn);
+            pfExpander.Content = pfStack;
+
             // ── 内联错误提示 ───────────────────────────────────────────────────
             var errorLabel = new TextBlock
             {
@@ -945,11 +1028,13 @@ namespace SwellSSH.Pages
             content.Children.Add(keepAliveBox);
             content.Children.Add(monitorSwitch);
             content.Children.Add(monitorInterval);
+            content.Children.Add(pfExpander);
             content.Children.Add(errorLabel);
 
             var dialog = new ContentDialog
             {
                 XamlRoot = this.XamlRoot,
+                RequestedTheme = this.ActualTheme,
                 Title = isNew ? "新建连接" : "编辑连接",
                 Content = new ScrollViewer { Content = content, MaxHeight = 540 },
                 PrimaryButtonText = "保存",
@@ -997,7 +1082,9 @@ namespace SwellSSH.Pages
             profile.AuthType = authCombo.SelectedItem?.ToString() ?? "Password";
             profile.KeepAliveIntervalSeconds = double.IsNaN(keepAliveBox.Value) ? 0 : (int)keepAliveBox.Value;
             profile.EnableMonitoring = monitorSwitch.IsOn;
-            profile.MonitorIntervalSeconds = double.IsNaN(monitorInterval.Value) ? 10 : Math.Max(3, (int)monitorInterval.Value);
+            profile.MonitorIntervalSeconds = (int)monitorInterval.Value;
+            profile.PortForwards = pfRules;
+            profile.LastConnected = DateTime.Now;
 
             if (profile.AuthType == "Password" && !string.IsNullOrEmpty(currentPwd))
                 profile.EncryptedPassword = ConnectionStorage.EncryptSecret(currentPwd);

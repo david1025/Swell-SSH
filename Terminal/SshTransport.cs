@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -60,32 +61,72 @@ namespace SwellSSH.Terminal
 
             await Task.Run(() =>
             {
-                _client = BuildClient(profile);
+                // Agent auth: the named pipe must remain open during Connect()
+                // because the agent performs the signing challenge-response.
+                // We dispose it in a finally block after Connect() completes.
+                System.IO.Pipes.NamedPipeClientStream? agentPipe = null;
 
-                // ── Host Key Verification ─────────────────────────────────
-                if (HostKeyVerifier != null)
+                try
                 {
-                    var verifier = HostKeyVerifier;
-                    _client.HostKeyReceived += (_, e) =>
+                    if (profile.AuthType == "Agent")
                     {
-                        string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
-                        // Block this thread-pool thread while UI dialog is shown
-                        bool trusted = verifier(profile.Host, profile.Port, e.HostKeyName, fp)
-                            .GetAwaiter().GetResult();
-                        e.CanTrust = trusted;
-                    };
+                        agentPipe = SshAgentService.OpenAgentPipe(3000);
+
+                        var identities = SshAgentService.RequestIdentities(agentPipe);
+                        if (identities.Count == 0)
+                            throw new InvalidOperationException(
+                                "SSH Agent 中没有可用的密钥。\n" +
+                                "请先用 ssh-add 命令将私钥加入 Agent，再重试。");
+
+                        // Each identity becomes an AgentKeySource; the pipe is shared
+                        // and must stay open until Connect() completes (agent signs challenge).
+                        var keySources = identities
+                            .Select(id => new AgentKeySource(id, agentPipe))
+                            .ToArray<IPrivateKeySource>();
+
+                        var authMethod = new PrivateKeyAuthenticationMethod(profile.Username, keySources);
+                        var connInfo = new ConnectionInfo(
+                            profile.Host, profile.Port, profile.Username, authMethod);
+                        _client = new SshClient(connInfo);
+
+                        if (profile.KeepAliveIntervalSeconds > 0)
+                            _client.KeepAliveInterval = TimeSpan.FromSeconds(profile.KeepAliveIntervalSeconds);
+                    }
+                    else
+                    {
+                        _client = BuildClient(profile);
+                    }
+
+                    // ── Host Key Verification (shared for all auth types) ─────
+                    if (HostKeyVerifier != null)
+                    {
+                        var verifier = HostKeyVerifier;
+                        _client.HostKeyReceived += (_, e) =>
+                        {
+                            string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
+                            // Block this thread-pool thread while UI dialog is shown
+                            bool trusted = verifier(profile.Host, profile.Port, e.HostKeyName, fp)
+                                .GetAwaiter().GetResult();
+                            e.CanTrust = trusted;
+                        };
+                    }
+
+                    _client.Connect(); // agentPipe kept open here — agent signs the challenge
+                    _client.ErrorOccurred += OnClientError;
+
+                    _shell = _client.CreateShellStream(
+                        terminalName: "xterm-256color",
+                        columns: (uint)cols,
+                        rows: (uint)rows,
+                        width: 0,
+                        height: 0,
+                        bufferSize: 4096);
                 }
-
-                _client.Connect();
-                _client.ErrorOccurred += OnClientError;
-
-                _shell = _client.CreateShellStream(
-                    terminalName: "xterm-256color",
-                    columns: (uint)cols,
-                    rows: (uint)rows,
-                    width: 0,
-                    height: 0,
-                    bufferSize: 4096);
+                finally
+                {
+                    // Agent pipe is only needed during the handshake; dispose after Connect().
+                    agentPipe?.Dispose();
+                }
             });
 
             // Start background read loop

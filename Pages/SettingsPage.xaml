@@ -8,8 +8,23 @@
         <StackPanel MaxWidth="600" Spacing="24">
             <TextBlock Text="设置" Style="{ThemeResource TitleTextBlockStyle}"/>
 
+            <!-- Search Box -->
+            <AutoSuggestBox x:Name="SettingsSearchBox"
+                            PlaceholderText="搜索设置项…"
+                            QueryIcon="Find"
+                            HorizontalAlignment="Stretch"
+                            TextChanged="SettingsSearchBox_TextChanged"/>
+
+            <!-- No Results Hint -->
+            <TextBlock x:Name="NoResultsText"
+                       Text="没有匹配的设置项"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,16"
+                       Visibility="Collapsed"/>
+
             <!-- Font -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="FontSection" Spacing="8">
                 <TextBlock Text="终端字体" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <ComboBox x:Name="FontFamilyCombo" Header="字体" Width="300" HorizontalAlignment="Left"
                           SelectionChanged="FontFamilyCombo_SelectionChanged"/>
@@ -18,7 +33,7 @@
             </StackPanel>
 
             <!-- Color scheme -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="ColorSchemeSection" Spacing="8">
                 <TextBlock Text="配色方案" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <ComboBox x:Name="ColorSchemeCombo" Header="主题"
                           ItemsSource="{x:Bind ColorSchemes}"
@@ -36,7 +51,7 @@
             </StackPanel>
 
             <!-- Cursor -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="CursorSection" Spacing="8">
                 <TextBlock Text="光标样式" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <StackPanel Orientation="Horizontal" Spacing="16">
                     <RadioButton x:Name="CursorBlock" Content="块状" GroupName="CursorStyle" IsChecked="True"
@@ -51,7 +66,7 @@
             </StackPanel>
 
             <!-- Backdrop -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="BackdropSection" Spacing="8">
                 <TextBlock Text="窗口背景" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <ComboBox x:Name="BackdropCombo" Header="背景材质"
                           ItemsSource="{x:Bind BackdropTypes}"
@@ -60,16 +75,16 @@
             </StackPanel>
 
             <!-- Behavior -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="BehaviorSection" Spacing="8">
                 <TextBlock Text="行为" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <ToggleSwitch x:Name="MinimizeOnCloseToggle" Header="关闭时最小化到托盘" IsOn="True"
                               Toggled="MinimizeOnCloseToggle_Toggled"/>
             </StackPanel>
 
-            <MenuFlyoutSeparator Margin="0,12"/>
+            <MenuFlyoutSeparator x:Name="AboutSeparator" Margin="0,12"/>
 
             <!-- About -->
-            <StackPanel Spacing="8">
+            <StackPanel x:Name="AboutSection" Spacing="8">
                 <TextBlock Text="关于 SwellSSH" Style="{ThemeResource SubtitleTextBlockStyle}"/>
                 <TextBlock x:Name="AppVersionText"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
@@ -84,4 +99,3 @@
         </StackPanel>
     </ScrollViewer>
 </Page>
-

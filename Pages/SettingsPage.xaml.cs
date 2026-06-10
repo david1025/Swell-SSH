@@ -178,6 +178,53 @@ namespace SwellSSH.Pages
             }
         }
 
+        // ── 设置页搜索 ──────────────────────────────────────────────────────
+
+        private void SettingsSearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        {
+            FilterSections(sender.Text);
+        }
+
+        private void FilterSections(string query)
+        {
+            query = query.Trim().ToLowerInvariant();
+            bool isSearching = !string.IsNullOrEmpty(query);
+
+            // 不搜索时恢复全部显示
+            AboutSeparator.Visibility = isSearching ? Visibility.Collapsed : Visibility.Visible;
+
+            if (!isSearching)
+            {
+                FontSection.Visibility = ColorSchemeSection.Visibility = CursorSection.Visibility =
+                    BackdropSection.Visibility = BehaviorSection.Visibility = AboutSection.Visibility =
+                    Visibility.Visible;
+                NoResultsText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            // 每个分区对应的匹配关键词（中英文混合）
+            var sections = new (UIElement Section, string[] Keywords)[]
+            {
+                (FontSection, new[] { "终端字体", "字体", "字号", "font", "consolas", "cascadia", "大小", "size" }),
+                (ColorSchemeSection, new[] { "配色方案", "配色", "主题", "颜色", "color", "scheme", "theme",
+                    "dracula", "nord", "mocha", "catppuccin", "tokyo", "night", "gruvbox", "solarized", "one dark", "light" }),
+                (CursorSection, new[] { "光标样式", "光标", "cursor", "闪烁", "blink", "块状", "block", "下划线", "underline", "竖线", "bar" }),
+                (BackdropSection, new[] { "窗口背景", "背景", "材质", "mica", "acrylic", "backdrop", "透明", "毛玻璃" }),
+                (BehaviorSection, new[] { "行为", "托盘", "关闭", "最小化", "minimize", "tray", "behavior" }),
+                (AboutSection, new[] { "关于", "版本", "更新", "about", "version", "update", "swellssh" }),
+            };
+
+            int visibleCount = 0;
+            foreach (var (section, keywords) in sections)
+            {
+                bool matches = keywords.Any(k => k.Contains(query) || query.Contains(k));
+                section.Visibility = matches ? Visibility.Visible : Visibility.Collapsed;
+                if (matches) visibleCount++;
+            }
+
+            NoResultsText.Visibility = visibleCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
         // ── 检查客户端更新 ──────────────────────────────────────────────────
 
         private async void CheckAppUpdateButton_Click(object sender, RoutedEventArgs e)

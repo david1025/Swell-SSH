@@ -410,13 +410,13 @@ namespace SwellSSH.Pages
             if (e.Key == Windows.System.VirtualKey.Enter)
             {
                 e.Handled = true;
-                DoQuickConnect();
+                _ = DoQuickConnectAsync();
             }
         }
 
-        private void QuickConnectButton_Click(object sender, RoutedEventArgs e) => DoQuickConnect();
+        private void QuickConnectButton_Click(object sender, RoutedEventArgs e) => _ = DoQuickConnectAsync();
 
-        private void DoQuickConnect()
+        private async Task DoQuickConnectAsync()
         {
             var input = QuickConnectBox.Text.Trim();
             if (string.IsNullOrEmpty(input)) return;
@@ -429,6 +429,55 @@ namespace SwellSSH.Pages
                     DispatcherQueue.TryEnqueue(() => QuickConnectBox.ClearValue(TextBox.BorderBrushProperty)));
                 return;
             }
+
+            // ── Password prompt ───────────────────────────────────────────────
+            // Quick-connect always uses Password auth; show a dialog to collect it.
+            var pwdBox = new PasswordBox
+            {
+                PlaceholderText = "输入密码",
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+            var promptContent = new StackPanel { Spacing = 4 };
+            promptContent.Children.Add(new TextBlock
+            {
+                Text = $"{profile.Username}@{profile.Host}:{profile.Port}",
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                Opacity = 0.8
+            });
+            promptContent.Children.Add(pwdBox);
+
+            var pwdDialog = new ContentDialog
+            {
+                XamlRoot         = this.XamlRoot,
+                Title            = "🔑 输入密码",
+                Content          = promptContent,
+                PrimaryButtonText  = "连接",
+                CloseButtonText    = "取消",
+                DefaultButton    = ContentDialogButton.Primary
+            };
+
+            // Auto-focus the password box when dialog opens
+            pwdDialog.Opened += (_, _) => pwdBox.Focus(FocusState.Programmatic);
+
+            // Allow pressing Enter inside the PasswordBox to confirm
+            pwdBox.KeyDown += (s, e) =>
+            {
+                if (e.Key == Windows.System.VirtualKey.Enter)
+                {
+                    e.Handled = true;
+                    pwdDialog.Hide();
+                    // Simulate primary button — we'll check Text below
+                }
+            };
+
+            var result = await pwdDialog.ShowAsync();
+
+            // Accept either the Primary button or Enter-key dismiss (password non-empty)
+            string pwd = pwdBox.Password;
+            if (result != ContentDialogResult.Primary && string.IsNullOrEmpty(pwd)) return;
+
+            if (!string.IsNullOrEmpty(pwd))
+                profile.EncryptedPassword = ConnectionStorage.EncryptSecret(pwd);
 
             QuickConnectBox.Text = "";
             OpenTerminalTab(profile);
@@ -794,7 +843,7 @@ namespace SwellSSH.Pages
             var userBox = new TextBox { Header = "用户名", Text = profile.Username, PlaceholderText = "root" };
             userBox.TextChanged += (s, e) => SetFieldError(userBox, false);
 
-            var authCombo = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey" }, SelectedItem = profile.AuthType };
+            var authCombo = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey", "Agent" }, SelectedItem = profile.AuthType };
 
             string existingPwd = "";
             if (!string.IsNullOrEmpty(profile.EncryptedPassword))
@@ -806,11 +855,44 @@ namespace SwellSSH.Pages
 
             var keyPathBox = new TextBox { Header = "私钥路径", Text = profile.PrivateKeyPath, PlaceholderText = @"C:\Users\...\id_rsa", Visibility = profile.AuthType == "PrivateKey" ? Visibility.Visible : Visibility.Collapsed };
 
+            // ── SSH Agent info panel ───────────────────────────────────────────
+            var agentInfoPanel = new StackPanel
+            {
+                Spacing = 6,
+                Visibility = profile.AuthType == "Agent" ? Visibility.Visible : Visibility.Collapsed
+            };
+            agentInfoPanel.Children.Add(new TextBlock
+            {
+                Text = "使用系统 OpenSSH Agent 认证，无需填写密码或私钥路径。",
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Opacity = 0.75
+            });
+            var agentStatusText = new TextBlock
+            {
+                Text = "正在检测 OpenSSH Agent…",
+                FontSize = 12,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray)
+            };
+            agentInfoPanel.Children.Add(agentStatusText);
+            // 异步检测 Agent 可用性，不阻塞 UI
+            _ = Task.Run(() => SshAgentService.IsOpenSshAgentAvailable())
+                .ContinueWith(t => DispatcherQueue.TryEnqueue(() =>
+                {
+                    agentStatusText.Text = t.Result
+                        ? "✓ OpenSSH Agent 运行中，连接时将自动使用已加载的密钥"
+                        : "⚠ 未检测到 OpenSSH Agent\n请在系统「服务」中启动「OpenSSH Authentication Agent」";
+                    agentStatusText.Foreground = new SolidColorBrush(t.Result
+                        ? Microsoft.UI.Colors.LimeGreen : Microsoft.UI.Colors.OrangeRed);
+                }));
+
             authCombo.SelectionChanged += (s, e) =>
             {
-                bool isPwd = authCombo.SelectedItem?.ToString() == "Password";
-                pwdBox.Visibility = isPwd ? Visibility.Visible : Visibility.Collapsed;
-                keyPathBox.Visibility = isPwd ? Visibility.Collapsed : Visibility.Visible;
+                string sel = authCombo.SelectedItem?.ToString() ?? "Password";
+                pwdBox.Visibility      = sel == "Password"   ? Visibility.Visible : Visibility.Collapsed;
+                keyPathBox.Visibility  = sel == "PrivateKey" ? Visibility.Visible : Visibility.Collapsed;
+                agentInfoPanel.Visibility = sel == "Agent"  ? Visibility.Visible : Visibility.Collapsed;
             };
 
             // ── Keepalive ──────────────────────────────────────────────────────
@@ -859,6 +941,7 @@ namespace SwellSSH.Pages
             content.Children.Add(authCombo);
             content.Children.Add(pwdBox);
             content.Children.Add(keyPathBox);
+            content.Children.Add(agentInfoPanel);
             content.Children.Add(keepAliveBox);
             content.Children.Add(monitorSwitch);
             content.Children.Add(monitorInterval);

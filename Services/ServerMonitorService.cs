@@ -135,9 +135,44 @@ namespace SwellSSH.Services
                             await Task.Run(() =>
                             {
                                 DisposeClient();
-                                _client = Build();
-                                _client.ConnectionInfo.Timeout = TimeSpan.FromSeconds(10);
-                                _client.Connect();
+                                System.IO.Pipes.NamedPipeClientStream? agentPipe = null;
+                                try
+                                {
+                                    if (_profile.AuthType == "Agent")
+                                    {
+                                        agentPipe = SshAgentService.OpenAgentPipe(3000);
+                                        var identities = SshAgentService.RequestIdentities(agentPipe);
+                                        if (identities.Count == 0)
+                                            throw new InvalidOperationException("Agent 中无密钥");
+
+                                        var keySources = System.Linq.Enumerable.ToArray(
+                                            System.Linq.Enumerable.Select(identities, id => new AgentKeySource(id, agentPipe)));
+                                        var authMethod = new PrivateKeyAuthenticationMethod(_profile.Username, keySources);
+                                        var connInfo = new ConnectionInfo(_profile.Host, _profile.Port, _profile.Username, authMethod);
+                                        _client = new SshClient(connInfo);
+                                        _client.KeepAliveInterval = TimeSpan.FromSeconds(30);
+                                    }
+                                    else
+                                    {
+                                        _client = Build();
+                                    }
+
+                                    // ── Host Key Verification ──
+                                    _client.HostKeyReceived += (_, e) =>
+                                    {
+                                        string fp = BitConverter.ToString(e.FingerPrint).Replace("-", ":");
+                                        var verifier = new KnownHostsService();
+                                        bool? trusted = verifier.Check(_profile.Host, _profile.Port, e.HostKeyName, fp);
+                                        e.CanTrust = trusted == true;
+                                    };
+
+                                    _client.ConnectionInfo.Timeout = TimeSpan.FromSeconds(10);
+                                    _client.Connect();
+                                }
+                                finally
+                                {
+                                    agentPipe?.Dispose();
+                                }
                             }, token);
                         }
 

@@ -35,15 +35,24 @@ namespace SwellSSH
             };
         }
 
+        private static void AppendDebugLog(string message)
+        {
+            try
+            {
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "debug.log"), $"[{DateTime.Now}] {message}\n");
+            }
+            catch { }
+        }
+
         protected override void OnLaunched(LaunchActivatedEventArgs args)
         {
-            File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] OnLaunched starting...\n");
+            AppendDebugLog("OnLaunched starting...");
             // Single-instance guard
             const string mutexName = "SwellSSH_SingleInstance_Global_V3";
             _singleInstanceMutex = new System.Threading.Mutex(true, mutexName, out bool createdNew);
             if (!createdNew)
             {
-                File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] Exiting due to mutex\n");
+                AppendDebugLog("Exiting due to mutex");
                 Environment.Exit(0);
                 return;
             }
@@ -51,16 +60,16 @@ namespace SwellSSH
             // Clean up old updater staging directories
             new SwellSSH.Services.AppUpdateService().CleanupOldStagingDirs();
 
-            File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] Creating MainWindow...\n");
+            AppendDebugLog("Creating MainWindow...");
             try {
                 _window = new MainWindow();
-                File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] Activating MainWindow...\n");
+                AppendDebugLog("Activating MainWindow...");
                 _window.Activate();
                 _window.AppWindow.Show();
                 _window.AppWindow.MoveInZOrderAtTop();
-                File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] OnLaunched finished.\n");
+                AppendDebugLog("OnLaunched finished.");
             } catch (Exception ex) {
-                File.AppendAllText(@"d:\test\SwellSSH\debug.log", $"[{DateTime.Now}] EXCEPTION in OnLaunched: {ex}\n");
+                AppendDebugLog($"EXCEPTION in OnLaunched: {ex}");
             }
         }
 

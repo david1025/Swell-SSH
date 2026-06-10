@@ -105,7 +105,19 @@
 
             <!-- Drag region for custom title bar -->
             <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
-                  VerticalAlignment="Top" Margin="240,0,140,0"/>
+                  VerticalAlignment="Top" Margin="240,0,180,0"/>
+
+            <!-- Global Sidebar Toggle Button: aligned to the right next to caption buttons -->
+            <Button x:Name="GlobalToggleSidebarButton"
+                    VerticalAlignment="Top" HorizontalAlignment="Right"
+                    Width="36" Height="36"
+                    Margin="0,6,140,0"
+                    CornerRadius="4"
+                    Background="Transparent" BorderBrush="Transparent"
+                    Padding="0"
+                    Click="GlobalToggleSidebarButton_Click" ToolTipService.ToolTip="切换终端工具箱">
+                <FontIcon Glyph="&#xE90D;" FontSize="14"/>
+            </Button>
 
         </Grid>
     </Grid>

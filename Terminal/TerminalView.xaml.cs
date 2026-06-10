@@ -75,88 +75,230 @@ namespace SwellSSH.Terminal
             Color.FromArgb(255, 242, 242, 242)   // 15 Bright White
         };
 
-        // Catppuccin Mocha ANSI colors
+        // Termark Dark
+        private static readonly Color[] TermarkDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x19, 0x19, 0x19), Color.FromArgb(255, 0xff, 0x7b, 0x72), Color.FromArgb(255, 0x7e, 0xe7, 0x87), Color.FromArgb(255, 0xe3, 0xb3, 0x41),
+            Color.FromArgb(255, 0x79, 0xc0, 0xff), Color.FromArgb(255, 0xd2, 0xa8, 0xff), Color.FromArgb(255, 0x39, 0xc5, 0xcf), Color.FromArgb(255, 0xb1, 0xba, 0xc4),
+            Color.FromArgb(255, 0x7a, 0x7a, 0x77), Color.FromArgb(255, 0xff, 0xa1, 0x98), Color.FromArgb(255, 0x56, 0xd3, 0x64), Color.FromArgb(255, 0xf2, 0xcc, 0x60),
+            Color.FromArgb(255, 0xa5, 0xd6, 0xff), Color.FromArgb(255, 0xe2, 0xc5, 0xff), Color.FromArgb(255, 0x56, 0xd4, 0xdd), Color.FromArgb(255, 0xf0, 0xf6, 0xfc)
+        };
+        // Flexoki Dark
+        private static readonly Color[] FlexokiDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x10, 0x0f, 0x0f), Color.FromArgb(255, 0xaf, 0x30, 0x29), Color.FromArgb(255, 0x66, 0x80, 0x0b), Color.FromArgb(255, 0xad, 0x83, 0x01),
+            Color.FromArgb(255, 0x20, 0x5e, 0xa6), Color.FromArgb(255, 0x5e, 0x40, 0x9d), Color.FromArgb(255, 0x24, 0x83, 0x7b), Color.FromArgb(255, 0xce, 0xcd, 0xc3),
+            Color.FromArgb(255, 0x28, 0x27, 0x26), Color.FromArgb(255, 0xd1, 0x4d, 0x41), Color.FromArgb(255, 0x87, 0x9a, 0x39), Color.FromArgb(255, 0xd0, 0xa2, 0x15),
+            Color.FromArgb(255, 0x43, 0x85, 0xbe), Color.FromArgb(255, 0x8b, 0x7e, 0xc8), Color.FromArgb(255, 0x3a, 0xa9, 0x9f), Color.FromArgb(255, 0xff, 0xfc, 0xf0)
+        };
+        // Kanagawa Wave
+        private static readonly Color[] KanagawaWaveColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x09, 0x06, 0x18), Color.FromArgb(255, 0xc3, 0x40, 0x43), Color.FromArgb(255, 0x76, 0x94, 0x6a), Color.FromArgb(255, 0xc0, 0xa3, 0x6e),
+            Color.FromArgb(255, 0x7e, 0x9c, 0xd8), Color.FromArgb(255, 0x95, 0x7f, 0xb8), Color.FromArgb(255, 0x6a, 0x95, 0x89), Color.FromArgb(255, 0xc8, 0xc0, 0x93),
+            Color.FromArgb(255, 0x72, 0x71, 0x69), Color.FromArgb(255, 0xe8, 0x24, 0x24), Color.FromArgb(255, 0x98, 0xbb, 0x6c), Color.FromArgb(255, 0xe6, 0xc3, 0x84),
+            Color.FromArgb(255, 0x7f, 0xb4, 0xca), Color.FromArgb(255, 0x93, 0x8a, 0xa9), Color.FromArgb(255, 0x7a, 0xa8, 0x9f), Color.FromArgb(255, 0xdc, 0xd7, 0xba)
+        };
+        // Night Owl
+        private static readonly Color[] NightOwlColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x01, 0x16, 0x27), Color.FromArgb(255, 0xef, 0x53, 0x50), Color.FromArgb(255, 0x22, 0xda, 0x6e), Color.FromArgb(255, 0xad, 0xdb, 0x67),
+            Color.FromArgb(255, 0x82, 0xaa, 0xff), Color.FromArgb(255, 0xc7, 0x92, 0xea), Color.FromArgb(255, 0x21, 0xc7, 0xa8), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x57, 0x56, 0x56), Color.FromArgb(255, 0xef, 0x53, 0x50), Color.FromArgb(255, 0x22, 0xda, 0x6e), Color.FromArgb(255, 0xff, 0xeb, 0x95),
+            Color.FromArgb(255, 0x82, 0xaa, 0xff), Color.FromArgb(255, 0xc7, 0x92, 0xea), Color.FromArgb(255, 0x7f, 0xdb, 0xca), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Hacker Green
+        private static readonly Color[] HackerGreenColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x00, 0x00), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0x8f, 0x11),
+            Color.FromArgb(255, 0x00, 0x5f, 0x00), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0xff, 0x41),
+            Color.FromArgb(255, 0x00, 0x11, 0x00), Color.FromArgb(255, 0xff, 0x00, 0x00), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0xff, 0x41),
+            Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0x00, 0xff, 0x41), Color.FromArgb(255, 0xcc, 0xff, 0xcc)
+        };
+        // Cyberpunk
+        private static readonly Color[] CyberpunkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x0d, 0x02, 0x21), Color.FromArgb(255, 0xff, 0x00, 0x6e), Color.FromArgb(255, 0x83, 0x38, 0xec), Color.FromArgb(255, 0xff, 0xbe, 0x0b),
+            Color.FromArgb(255, 0x3a, 0x86, 0xff), Color.FromArgb(255, 0xff, 0x00, 0x6e), Color.FromArgb(255, 0x06, 0xff, 0xa5), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x6c, 0x5b, 0x7b), Color.FromArgb(255, 0xff, 0x00, 0x6e), Color.FromArgb(255, 0x83, 0x38, 0xec), Color.FromArgb(255, 0xff, 0xbe, 0x0b),
+            Color.FromArgb(255, 0x3a, 0x86, 0xff), Color.FromArgb(255, 0xff, 0x00, 0x6e), Color.FromArgb(255, 0x06, 0xff, 0xa5), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Cobalt2
+        private static readonly Color[] Cobalt2Colors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x5d, 0x38), Color.FromArgb(255, 0x3a, 0xd9, 0x00), Color.FromArgb(255, 0xff, 0xb4, 0x02),
+            Color.FromArgb(255, 0x00, 0x88, 0xff), Color.FromArgb(255, 0xbc, 0x3f, 0xbc), Color.FromArgb(255, 0x00, 0xd0, 0xd0), Color.FromArgb(255, 0xd0, 0xd0, 0xd0),
+            Color.FromArgb(255, 0x80, 0x80, 0x80), Color.FromArgb(255, 0xff, 0x80, 0x70), Color.FromArgb(255, 0x66, 0xff, 0x00), Color.FromArgb(255, 0xff, 0xeb, 0x3b),
+            Color.FromArgb(255, 0x5b, 0xa3, 0xff), Color.FromArgb(255, 0xff, 0x4e, 0xff), Color.FromArgb(255, 0x5c, 0xe8, 0xe8), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Rose Pine
+        private static readonly Color[] RosePineColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x19, 0x17, 0x24), Color.FromArgb(255, 0xeb, 0x6f, 0x92), Color.FromArgb(255, 0x31, 0x74, 0x8f), Color.FromArgb(255, 0xf6, 0xc1, 0x77),
+            Color.FromArgb(255, 0x9c, 0xcf, 0xd8), Color.FromArgb(255, 0xc4, 0xa7, 0xe7), Color.FromArgb(255, 0xeb, 0xbc, 0xba), Color.FromArgb(255, 0xe0, 0xde, 0xf4),
+            Color.FromArgb(255, 0x55, 0x51, 0x69), Color.FromArgb(255, 0xeb, 0x6f, 0x92), Color.FromArgb(255, 0x31, 0x74, 0x8f), Color.FromArgb(255, 0xf6, 0xc1, 0x77),
+            Color.FromArgb(255, 0x9c, 0xcf, 0xd8), Color.FromArgb(255, 0xc4, 0xa7, 0xe7), Color.FromArgb(255, 0xeb, 0xbc, 0xba), Color.FromArgb(255, 0xe0, 0xde, 0xf4)
+        };
+        // Catppuccin Mocha
         private static readonly Color[] CatppuccinMochaColors = new Color[16]
         {
-            Color.FromArgb(255,  30,  30,  46),  // 0  Black  (Crust)
-            Color.FromArgb(255, 243,  97, 120),  // 1  Red    (Red)
-            Color.FromArgb(255, 166, 218, 149),  // 2  Green  (Green)
-            Color.FromArgb(255, 249, 226, 175),  // 3  Yellow (Yellow)
-            Color.FromArgb(255, 137, 180, 250),  // 4  Blue   (Blue)
-            Color.FromArgb(255, 245, 194, 231),  // 5  Magenta(Pink)
-            Color.FromArgb(255, 148, 226, 213),  // 6  Cyan   (Teal)
-            Color.FromArgb(255, 205, 214, 244),  // 7  White  (Text)
-            Color.FromArgb(255,  88,  91, 112),  // 8  Bright Black  (Surface1)
-            Color.FromArgb(255, 243,  97, 120),  // 9  Bright Red
-            Color.FromArgb(255, 166, 218, 149),  // 10 Bright Green
-            Color.FromArgb(255, 249, 226, 175),  // 11 Bright Yellow
-            Color.FromArgb(255, 137, 180, 250),  // 12 Bright Blue
-            Color.FromArgb(255, 245, 194, 231),  // 13 Bright Magenta
-            Color.FromArgb(255, 148, 226, 213),  // 14 Bright Cyan
-            Color.FromArgb(255, 205, 214, 244)   // 15 Bright White
+            Color.FromArgb(255, 0x45, 0x47, 0x5a), Color.FromArgb(255, 0xf3, 0x8b, 0xa8), Color.FromArgb(255, 0xa6, 0xe3, 0xa1), Color.FromArgb(255, 0xf9, 0xe2, 0xaf),
+            Color.FromArgb(255, 0x89, 0xb4, 0xfa), Color.FromArgb(255, 0xf5, 0xc2, 0xde), Color.FromArgb(255, 0x94, 0xe2, 0xd5), Color.FromArgb(255, 0xcd, 0xd6, 0xf4),
+            Color.FromArgb(255, 0x58, 0x5b, 0x70), Color.FromArgb(255, 0xf3, 0x8b, 0xa8), Color.FromArgb(255, 0xa6, 0xe3, 0xa1), Color.FromArgb(255, 0xf9, 0xe2, 0xaf),
+            Color.FromArgb(255, 0x89, 0xb4, 0xfa), Color.FromArgb(255, 0xf5, 0xc2, 0xde), Color.FromArgb(255, 0x94, 0xe2, 0xd5), Color.FromArgb(255, 0xcd, 0xd6, 0xf4)
         };
-
-        // Tokyo Night ANSI colors
+        // Tokyo Night
         private static readonly Color[] TokyoNightColors = new Color[16]
         {
-            Color.FromArgb(255,  26,  27,  38),  // 0  Black
-            Color.FromArgb(255, 247,  99,  87),  // 1  Red
-            Color.FromArgb(255, 158, 206, 106),  // 2  Green
-            Color.FromArgb(255, 224, 175, 104),  // 3  Yellow
-            Color.FromArgb(255, 122, 162, 247),  // 4  Blue
-            Color.FromArgb(255, 187, 154, 247),  // 5  Magenta
-            Color.FromArgb(255, 125, 207, 255),  // 6  Cyan
-            Color.FromArgb(255, 169, 177, 214),  // 7  White
-            Color.FromArgb(255,  65,  72, 104),  // 8  Bright Black
-            Color.FromArgb(255, 247,  99,  87),  // 9  Bright Red
-            Color.FromArgb(255, 158, 206, 106),  // 10 Bright Green
-            Color.FromArgb(255, 224, 175, 104),  // 11 Bright Yellow
-            Color.FromArgb(255, 122, 162, 247),  // 12 Bright Blue
-            Color.FromArgb(255, 187, 154, 247),  // 13 Bright Magenta
-            Color.FromArgb(255, 125, 207, 255),  // 14 Bright Cyan
-            Color.FromArgb(255, 192, 202, 245)   // 15 Bright White
+            Color.FromArgb(255, 0x15, 0x20, 0x2b), Color.FromArgb(255, 0xf7, 0x76, 0x8e), Color.FromArgb(255, 0x9e, 0xce, 0x6a), Color.FromArgb(255, 0xe0, 0xaf, 0x68),
+            Color.FromArgb(255, 0x7a, 0xa2, 0xf7), Color.FromArgb(255, 0xbb, 0x9a, 0xf7), Color.FromArgb(255, 0x7d, 0xcf, 0xff), Color.FromArgb(255, 0xc0, 0xca, 0xf5),
+            Color.FromArgb(255, 0x41, 0x48, 0x68), Color.FromArgb(255, 0xf7, 0x76, 0x8e), Color.FromArgb(255, 0x9e, 0xce, 0x6a), Color.FromArgb(255, 0xe0, 0xaf, 0x68),
+            Color.FromArgb(255, 0x7a, 0xa2, 0xf7), Color.FromArgb(255, 0xbb, 0x9a, 0xf7), Color.FromArgb(255, 0x7d, 0xcf, 0xff), Color.FromArgb(255, 0xc0, 0xca, 0xf5)
         };
-
-        // Nord ANSI colors
-        private static readonly Color[] NordColors = new Color[16]
-        {
-            Color.FromArgb(255,  46,  52,  64),  // 0  Black   (Nord0)
-            Color.FromArgb(255, 191,  97, 106),  // 1  Red     (Nord11)
-            Color.FromArgb(255, 163, 190, 140),  // 2  Green   (Nord14)
-            Color.FromArgb(255, 235, 203, 139),  // 3  Yellow  (Nord13)
-            Color.FromArgb(255, 129, 161, 193),  // 4  Blue    (Nord9)
-            Color.FromArgb(255, 180, 142, 173),  // 5  Magenta (Nord15)
-            Color.FromArgb(255, 136, 192, 208),  // 6  Cyan    (Nord8)
-            Color.FromArgb(255, 216, 222, 233),  // 7  White   (Nord4)
-            Color.FromArgb(255,  59,  66,  82),  // 8  Bright Black  (Nord1)
-            Color.FromArgb(255, 191,  97, 106),  // 9  Bright Red
-            Color.FromArgb(255, 163, 190, 140),  // 10 Bright Green
-            Color.FromArgb(255, 235, 203, 139),  // 11 Bright Yellow
-            Color.FromArgb(255, 143, 188, 187),  // 12 Bright Blue  (Nord7)
-            Color.FromArgb(255, 180, 142, 173),  // 13 Bright Magenta
-            Color.FromArgb(255, 136, 192, 208),  // 14 Bright Cyan
-            Color.FromArgb(255, 236, 239, 244)   // 15 Bright White  (Nord6)
-        };
-
-        // Gruvbox Dark ANSI colors
+        // Gruvbox Dark
         private static readonly Color[] GruvboxDarkColors = new Color[16]
         {
-            Color.FromArgb(255,  40,  40,  40),  // 0  Black   (bg)
-            Color.FromArgb(255, 204,  36,  29),  // 1  Red
-            Color.FromArgb(255, 152, 151,  26),  // 2  Green
-            Color.FromArgb(255, 215, 153,  33),  // 3  Yellow
-            Color.FromArgb(255,  69, 133, 136),  // 4  Blue
-            Color.FromArgb(255, 177,  98, 134),  // 5  Magenta (purple)
-            Color.FromArgb(255, 104, 157, 106),  // 6  Cyan    (aqua)
-            Color.FromArgb(255, 168, 153, 132),  // 7  White   (fg4)
-            Color.FromArgb(255, 146, 131, 116),  // 8  Bright Black
-            Color.FromArgb(255, 251,  73,  52),  // 9  Bright Red
-            Color.FromArgb(255, 184, 187,  38),  // 10 Bright Green
-            Color.FromArgb(255, 250, 189,  47),  // 11 Bright Yellow
-            Color.FromArgb(255, 131, 165, 152),  // 12 Bright Blue
-            Color.FromArgb(255, 211, 134, 155),  // 13 Bright Magenta
-            Color.FromArgb(255, 142, 192, 124),  // 14 Bright Cyan
-            Color.FromArgb(255, 235, 219, 178)   // 15 Bright White (fg)
+            Color.FromArgb(255, 0x28, 0x28, 0x28), Color.FromArgb(255, 0xcc, 0x24, 0x1d), Color.FromArgb(255, 0x98, 0x97, 0x1a), Color.FromArgb(255, 0xd7, 0x99, 0x21),
+            Color.FromArgb(255, 0x45, 0x85, 0x88), Color.FromArgb(255, 0xb1, 0x62, 0x86), Color.FromArgb(255, 0x68, 0x9d, 0x6a), Color.FromArgb(255, 0xa8, 0x99, 0x84),
+            Color.FromArgb(255, 0x92, 0x83, 0x74), Color.FromArgb(255, 0xfb, 0x49, 0x34), Color.FromArgb(255, 0xb8, 0xbb, 0x26), Color.FromArgb(255, 0xfa, 0xbd, 0x2f),
+            Color.FromArgb(255, 0x83, 0xa5, 0x98), Color.FromArgb(255, 0xd3, 0x86, 0x9b), Color.FromArgb(255, 0x8e, 0xc0, 0x7c), Color.FromArgb(255, 0xeb, 0xdb, 0xb2)
+        };
+        // Ayu Dark
+        private static readonly Color[] AyuDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x33, 0x33), Color.FromArgb(255, 0x86, 0xb3, 0x00), Color.FromArgb(255, 0xff, 0xb4, 0x54),
+            Color.FromArgb(255, 0x36, 0xa3, 0xd9), Color.FromArgb(255, 0xf0, 0x71, 0x78), Color.FromArgb(255, 0x95, 0xe1, 0xd3), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x32, 0x32, 0x32), Color.FromArgb(255, 0xff, 0x65, 0x65), Color.FromArgb(255, 0xb8, 0xe5, 0x36), Color.FromArgb(255, 0xff, 0xc6, 0x6d),
+            Color.FromArgb(255, 0x55, 0xb4, 0xd4), Color.FromArgb(255, 0xff, 0x88, 0x88), Color.FromArgb(255, 0x95, 0xe1, 0xd3), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Material Dark
+        private static readonly Color[] MaterialDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xf0, 0x71, 0x78), Color.FromArgb(255, 0xc3, 0xe8, 0x8d), Color.FromArgb(255, 0xff, 0xcb, 0x8b),
+            Color.FromArgb(255, 0x82, 0xb1, 0xff), Color.FromArgb(255, 0xc7, 0x92, 0xea), Color.FromArgb(255, 0x89, 0xdd, 0xff), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x54, 0x6e, 0x7a), Color.FromArgb(255, 0xef, 0x53, 0x50), Color.FromArgb(255, 0x9c, 0xcc, 0x65), Color.FromArgb(255, 0xff, 0xeb, 0x3b),
+            Color.FromArgb(255, 0x42, 0xa5, 0xf5), Color.FromArgb(255, 0xab, 0x47, 0xbc), Color.FromArgb(255, 0x29, 0xb6, 0xf6), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Atom One Dark
+        private static readonly Color[] AtomOneDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x1e, 0x1e, 0x1e), Color.FromArgb(255, 0xe0, 0x6c, 0x75), Color.FromArgb(255, 0x98, 0xc3, 0x79), Color.FromArgb(255, 0xd1, 0x9a, 0x66),
+            Color.FromArgb(255, 0x61, 0xaf, 0xef), Color.FromArgb(255, 0xc6, 0x78, 0xdd), Color.FromArgb(255, 0x56, 0xb6, 0xc2), Color.FromArgb(255, 0xab, 0xb2, 0xbf),
+            Color.FromArgb(255, 0x5c, 0x63, 0x70), Color.FromArgb(255, 0xe0, 0x6c, 0x75), Color.FromArgb(255, 0x98, 0xc3, 0x79), Color.FromArgb(255, 0xd1, 0x9a, 0x66),
+            Color.FromArgb(255, 0x61, 0xaf, 0xef), Color.FromArgb(255, 0xc6, 0x78, 0xdd), Color.FromArgb(255, 0x56, 0xb6, 0xc2), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Solarized Dark
+        private static readonly Color[] SolarizedDarkColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x07, 0x36, 0x42), Color.FromArgb(255, 0xdc, 0x32, 0x2f), Color.FromArgb(255, 0x85, 0x99, 0x00), Color.FromArgb(255, 0xb5, 0x89, 0x00),
+            Color.FromArgb(255, 0x26, 0x8b, 0xd2), Color.FromArgb(255, 0xd3, 0x36, 0x82), Color.FromArgb(255, 0x2a, 0xa1, 0x98), Color.FromArgb(255, 0xee, 0xe8, 0xd5),
+            Color.FromArgb(255, 0x00, 0x2b, 0x36), Color.FromArgb(255, 0xcb, 0x4b, 0x16), Color.FromArgb(255, 0x58, 0x6e, 0x75), Color.FromArgb(255, 0x65, 0x7b, 0x83),
+            Color.FromArgb(255, 0x83, 0x94, 0x96), Color.FromArgb(255, 0x6c, 0x71, 0xc4), Color.FromArgb(255, 0x93, 0xa1, 0xa1), Color.FromArgb(255, 0xfd, 0xf6, 0xe3)
+        };
+        // Dracula
+        private static readonly Color[] DraculaColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x55, 0x55), Color.FromArgb(255, 0x50, 0xfa, 0x7b), Color.FromArgb(255, 0xf1, 0xfa, 0x8c),
+            Color.FromArgb(255, 0x61, 0xbf, 0xff), Color.FromArgb(255, 0xff, 0x79, 0xc6), Color.FromArgb(255, 0x8b, 0xe9, 0xfd), Color.FromArgb(255, 0xbf, 0xbf, 0xbf),
+            Color.FromArgb(255, 0x57, 0x5b, 0x86), Color.FromArgb(255, 0xff, 0x6e, 0x6e), Color.FromArgb(255, 0x69, 0xff, 0x94), Color.FromArgb(255, 0xff, 0xff, 0xa5),
+            Color.FromArgb(255, 0x8b, 0xe9, 0xfd), Color.FromArgb(255, 0xff, 0x92, 0xdf), Color.FromArgb(255, 0xa4, 0xff, 0xff), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+        // Monokai
+        private static readonly Color[] MonokaiColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x27, 0x28, 0x22), Color.FromArgb(255, 0xf9, 0x26, 0x72), Color.FromArgb(255, 0xa6, 0xe2, 0x2e), Color.FromArgb(255, 0xe6, 0xdb, 0x74),
+            Color.FromArgb(255, 0x66, 0xd9, 0xef), Color.FromArgb(255, 0xae, 0x81, 0xff), Color.FromArgb(255, 0xa1, 0xef, 0xe4), Color.FromArgb(255, 0xf8, 0xf8, 0xf2),
+            Color.FromArgb(255, 0x75, 0x71, 0x5e), Color.FromArgb(255, 0xf9, 0x26, 0x72), Color.FromArgb(255, 0xa6, 0xe2, 0x2e), Color.FromArgb(255, 0xe6, 0xdb, 0x74),
+            Color.FromArgb(255, 0x66, 0xd9, 0xef), Color.FromArgb(255, 0xae, 0x81, 0xff), Color.FromArgb(255, 0xa1, 0xef, 0xe4), Color.FromArgb(255, 0xf9, 0xf8, 0xf5)
+        };
+        // Nord
+        private static readonly Color[] NordColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x3b, 0x42, 0x52), Color.FromArgb(255, 0xbf, 0x61, 0x6a), Color.FromArgb(255, 0xa3, 0xbe, 0x8c), Color.FromArgb(255, 0xeb, 0xcb, 0x8b),
+            Color.FromArgb(255, 0x81, 0xa1, 0xc1), Color.FromArgb(255, 0xb4, 0x8e, 0xad), Color.FromArgb(255, 0x88, 0xc0, 0xd0), Color.FromArgb(255, 0xd8, 0xde, 0xe9),
+            Color.FromArgb(255, 0x4c, 0x56, 0x6a), Color.FromArgb(255, 0xbf, 0x61, 0x6a), Color.FromArgb(255, 0xa3, 0xbe, 0x8c), Color.FromArgb(255, 0xeb, 0xcb, 0x8b),
+            Color.FromArgb(255, 0x81, 0xa1, 0xc1), Color.FromArgb(255, 0xb4, 0x8e, 0xad), Color.FromArgb(255, 0x88, 0xc0, 0xd0), Color.FromArgb(255, 0xec, 0xef, 0xf4)
+        };
+
+// Termark Light
+        private static readonly Color[] TermarkLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x24, 0x29, 0x2f), Color.FromArgb(255, 0xcf, 0x22, 0x2e), Color.FromArgb(255, 0x11, 0x63, 0x29), Color.FromArgb(255, 0x9a, 0x67, 0x00),
+            Color.FromArgb(255, 0x09, 0x69, 0xda), Color.FromArgb(255, 0x82, 0x50, 0xdf), Color.FromArgb(255, 0x1b, 0x7c, 0x83), Color.FromArgb(255, 0x6e, 0x77, 0x81),
+            Color.FromArgb(255, 0x24, 0x29, 0x2f), Color.FromArgb(255, 0xcf, 0x22, 0x2e), Color.FromArgb(255, 0x11, 0x63, 0x29), Color.FromArgb(255, 0x9a, 0x67, 0x00),
+            Color.FromArgb(255, 0x09, 0x69, 0xda), Color.FromArgb(255, 0x82, 0x50, 0xdf), Color.FromArgb(255, 0x1b, 0x7c, 0x83), Color.FromArgb(255, 0x6e, 0x77, 0x81)
+        };
+
+        // Rose Pine Dawn
+        private static readonly Color[] RosePineDawnColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x55, 0x51, 0x69), Color.FromArgb(255, 0xb4, 0x63, 0x7a), Color.FromArgb(255, 0x28, 0x69, 0x83), Color.FromArgb(255, 0xd7, 0xaf, 0x70),
+            Color.FromArgb(255, 0x56, 0x94, 0x9f), Color.FromArgb(255, 0x90, 0x7a, 0xa9), Color.FromArgb(255, 0xea, 0x9d, 0x34), Color.FromArgb(255, 0xfa, 0xf4, 0xed),
+            Color.FromArgb(255, 0x55, 0x51, 0x69), Color.FromArgb(255, 0xb4, 0x63, 0x7a), Color.FromArgb(255, 0x28, 0x69, 0x83), Color.FromArgb(255, 0xd7, 0xaf, 0x70),
+            Color.FromArgb(255, 0x56, 0x94, 0x9f), Color.FromArgb(255, 0x90, 0x7a, 0xa9), Color.FromArgb(255, 0xea, 0x9d, 0x34), Color.FromArgb(255, 0xfa, 0xf4, 0xed)
+        };
+
+        // Catppuccin Latte
+        private static readonly Color[] CatppuccinLatteColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x5c, 0x5f, 0x77), Color.FromArgb(255, 0xd2, 0x0f, 0x39), Color.FromArgb(255, 0x40, 0xa0, 0x2b), Color.FromArgb(255, 0xdf, 0x8e, 0x1d),
+            Color.FromArgb(255, 0x1e, 0x66, 0xf5), Color.FromArgb(255, 0xea, 0x76, 0xcb), Color.FromArgb(255, 0x04, 0xa5, 0xe5), Color.FromArgb(255, 0xef, 0xf1, 0xf5),
+            Color.FromArgb(255, 0x5c, 0x5f, 0x77), Color.FromArgb(255, 0xd2, 0x0f, 0x39), Color.FromArgb(255, 0x40, 0xa0, 0x2b), Color.FromArgb(255, 0xdf, 0x8e, 0x1d),
+            Color.FromArgb(255, 0x1e, 0x66, 0xf5), Color.FromArgb(255, 0xea, 0x76, 0xcb), Color.FromArgb(255, 0x04, 0xa5, 0xe5), Color.FromArgb(255, 0xef, 0xf1, 0xf5)
+        };
+
+        // Tokyo Day
+        private static readonly Color[] TokyoDayColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x1f, 0x23, 0x35), Color.FromArgb(255, 0xf5, 0x2a, 0x65), Color.FromArgb(255, 0x58, 0x75, 0x39), Color.FromArgb(255, 0x8e, 0x8a, 0x2b),
+            Color.FromArgb(255, 0x18, 0x80, 0x92), Color.FromArgb(255, 0x8c, 0x6c, 0xb8), Color.FromArgb(255, 0x00, 0x71, 0x97), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x1f, 0x23, 0x35), Color.FromArgb(255, 0xf5, 0x2a, 0x65), Color.FromArgb(255, 0x58, 0x75, 0x39), Color.FromArgb(255, 0x8e, 0x8a, 0x2b),
+            Color.FromArgb(255, 0x18, 0x80, 0x92), Color.FromArgb(255, 0x8c, 0x6c, 0xb8), Color.FromArgb(255, 0x00, 0x71, 0x97), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+
+        // Gruvbox Light
+        private static readonly Color[] GruvboxLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0xfb, 0xf1, 0xc7), Color.FromArgb(255, 0xcc, 0x24, 0x1d), Color.FromArgb(255, 0x98, 0x97, 0x1a), Color.FromArgb(255, 0xd7, 0x99, 0x21),
+            Color.FromArgb(255, 0x45, 0x85, 0x88), Color.FromArgb(255, 0xb1, 0x62, 0x86), Color.FromArgb(255, 0x68, 0x9d, 0x6a), Color.FromArgb(255, 0x7c, 0x6f, 0x64),
+            Color.FromArgb(255, 0xfb, 0xf1, 0xc7), Color.FromArgb(255, 0xcc, 0x24, 0x1d), Color.FromArgb(255, 0x98, 0x97, 0x1a), Color.FromArgb(255, 0xd7, 0x99, 0x21),
+            Color.FromArgb(255, 0x45, 0x85, 0x88), Color.FromArgb(255, 0xb1, 0x62, 0x86), Color.FromArgb(255, 0x68, 0x9d, 0x6a), Color.FromArgb(255, 0x7c, 0x6f, 0x64)
+        };
+
+        // Ayu Light
+        private static readonly Color[] AyuLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x33, 0x33), Color.FromArgb(255, 0x86, 0xb3, 0x00), Color.FromArgb(255, 0xff, 0xb4, 0x54),
+            Color.FromArgb(255, 0x36, 0xa3, 0xd9), Color.FromArgb(255, 0xf0, 0x71, 0x78), Color.FromArgb(255, 0x4d, 0xbf, 0x99), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xff, 0x33, 0x33), Color.FromArgb(255, 0x86, 0xb3, 0x00), Color.FromArgb(255, 0xff, 0xb4, 0x54),
+            Color.FromArgb(255, 0x36, 0xa3, 0xd9), Color.FromArgb(255, 0xf0, 0x71, 0x78), Color.FromArgb(255, 0x4d, 0xbf, 0x99), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+
+        // Material Light
+        private static readonly Color[] MaterialLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xe5, 0x39, 0x35), Color.FromArgb(255, 0x43, 0xa0, 0x47), Color.FromArgb(255, 0xfb, 0x8c, 0x00),
+            Color.FromArgb(255, 0x1e, 0x88, 0xe5), Color.FromArgb(255, 0x8e, 0x24, 0xaa), Color.FromArgb(255, 0x00, 0xac, 0xc1), Color.FromArgb(255, 0xff, 0xff, 0xff),
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0xe5, 0x39, 0x35), Color.FromArgb(255, 0x43, 0xa0, 0x47), Color.FromArgb(255, 0xfb, 0x8c, 0x00),
+            Color.FromArgb(255, 0x1e, 0x88, 0xe5), Color.FromArgb(255, 0x8e, 0x24, 0xaa), Color.FromArgb(255, 0x00, 0xac, 0xc1), Color.FromArgb(255, 0xff, 0xff, 0xff)
+        };
+
+        // Atom One Light
+        private static readonly Color[] AtomOneLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x38, 0x3a, 0x42), Color.FromArgb(255, 0xe4, 0x56, 0x49), Color.FromArgb(255, 0x50, 0xa1, 0x4f), Color.FromArgb(255, 0xc1, 0x84, 0x01),
+            Color.FromArgb(255, 0x40, 0x78, 0xf2), Color.FromArgb(255, 0xa6, 0x26, 0xa4), Color.FromArgb(255, 0x01, 0x84, 0xbc), Color.FromArgb(255, 0xfa, 0xfa, 0xfa),
+            Color.FromArgb(255, 0x38, 0x3a, 0x42), Color.FromArgb(255, 0xe4, 0x56, 0x49), Color.FromArgb(255, 0x50, 0xa1, 0x4f), Color.FromArgb(255, 0xc1, 0x84, 0x01),
+            Color.FromArgb(255, 0x40, 0x78, 0xf2), Color.FromArgb(255, 0xa6, 0x26, 0xa4), Color.FromArgb(255, 0x01, 0x84, 0xbc), Color.FromArgb(255, 0xfa, 0xfa, 0xfa)
+        };
+
+        // Solarized Light
+        private static readonly Color[] SolarizedLightColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x07, 0x36, 0x42), Color.FromArgb(255, 0xdc, 0x32, 0x2f), Color.FromArgb(255, 0x85, 0x99, 0x00), Color.FromArgb(255, 0xb5, 0x89, 0x00),
+            Color.FromArgb(255, 0x26, 0x8b, 0xd2), Color.FromArgb(255, 0xd3, 0x36, 0x82), Color.FromArgb(255, 0x2a, 0xa1, 0x98), Color.FromArgb(255, 0xfd, 0xf6, 0xe3),
+            Color.FromArgb(255, 0x07, 0x36, 0x42), Color.FromArgb(255, 0xdc, 0x32, 0x2f), Color.FromArgb(255, 0x85, 0x99, 0x00), Color.FromArgb(255, 0xb5, 0x89, 0x00),
+            Color.FromArgb(255, 0x26, 0x8b, 0xd2), Color.FromArgb(255, 0xd3, 0x36, 0x82), Color.FromArgb(255, 0x2a, 0xa1, 0x98), Color.FromArgb(255, 0xfd, 0xf6, 0xe3)
         };
 
         private Color[] _ansiColors = DarkStandardColors;
@@ -200,47 +342,195 @@ namespace SwellSSH.Terminal
                 _ansiColors = LightStandardColors;
                 _selectionBg = Color.FromArgb(255, 204, 232, 255);
             }
-            else if (settings.ColorScheme == "Dracula")
+            else if (settings.ColorScheme == "Termark Dark")
             {
-                _defaultBg = Color.FromArgb(255, 40, 42, 54);
-                _defaultFg = Color.FromArgb(255, 248, 248, 242);
-                _ansiColors = DarkStandardColors;
-                _selectionBg = Color.FromArgb(255, 68, 71, 90);
+                _defaultBg = Color.FromArgb(255, 0x21, 0x21, 0x21);
+                _defaultFg = Color.FromArgb(255, 0xe6, 0xed, 0xf3);
+                _ansiColors = TermarkDarkColors;
+                _selectionBg = Color.FromArgb(0x33, 0x92, 0xff, 0x44);
             }
-            else if (settings.ColorScheme == "Solarized Dark")
+            else if (settings.ColorScheme == "Flexoki Dark")
             {
-                _defaultBg = Color.FromArgb(255, 0, 43, 54);
-                _defaultFg = Color.FromArgb(255, 131, 148, 150);
-                _ansiColors = DarkStandardColors;
-                _selectionBg = Color.FromArgb(255, 7, 54, 66);
+                _defaultBg = Color.FromArgb(255, 0x10, 0x0f, 0x0f);
+                _defaultFg = Color.FromArgb(255, 0xce, 0xcd, 0xc3);
+                _ansiColors = FlexokiDarkColors;
+                _selectionBg = Color.FromArgb(255, 0x28, 0x27, 0x26);
+            }
+            else if (settings.ColorScheme == "Kanagawa Wave")
+            {
+                _defaultBg = Color.FromArgb(255, 0x1f, 0x1f, 0x28);
+                _defaultFg = Color.FromArgb(255, 0xdc, 0xd7, 0xba);
+                _ansiColors = KanagawaWaveColors;
+                _selectionBg = Color.FromArgb(255, 0x2d, 0x4f, 0x67);
+            }
+            else if (settings.ColorScheme == "Night Owl")
+            {
+                _defaultBg = Color.FromArgb(255, 0x01, 0x16, 0x27);
+                _defaultFg = Color.FromArgb(255, 0xd6, 0xde, 0xeb);
+                _ansiColors = NightOwlColors;
+                _selectionBg = Color.FromArgb(255, 0x1d, 0x3b, 0x53);
+            }
+            else if (settings.ColorScheme == "Hacker Green")
+            {
+                _defaultBg = Color.FromArgb(255, 0x0d, 0x02, 0x08);
+                _defaultFg = Color.FromArgb(255, 0x00, 0xff, 0x41);
+                _ansiColors = HackerGreenColors;
+                _selectionBg = Color.FromArgb(255, 0x00, 0x3b, 0x00);
+            }
+            else if (settings.ColorScheme == "Cyberpunk")
+            {
+                _defaultBg = Color.FromArgb(255, 0x0d, 0x02, 0x21);
+                _defaultFg = Color.FromArgb(255, 0xff, 0x00, 0x6e);
+                _ansiColors = CyberpunkColors;
+                _selectionBg = Color.FromArgb(255, 0x3a, 0x0c, 0xa3);
+            }
+            else if (settings.ColorScheme == "Cobalt2")
+            {
+                _defaultBg = Color.FromArgb(255, 0x13, 0x27, 0x38);
+                _defaultFg = Color.FromArgb(255, 0xff, 0xff, 0xff);
+                _ansiColors = Cobalt2Colors;
+                _selectionBg = Color.FromArgb(255, 0x1e, 0x3c, 0x41);
+            }
+            else if (settings.ColorScheme == "Rose Pine")
+            {
+                _defaultBg = Color.FromArgb(255, 0x19, 0x17, 0x24);
+                _defaultFg = Color.FromArgb(255, 0xe0, 0xde, 0xf4);
+                _ansiColors = RosePineColors;
+                _selectionBg = Color.FromArgb(255, 0x40, 0x3d, 0x52);
             }
             else if (settings.ColorScheme == "Catppuccin Mocha")
             {
-                _defaultBg = Color.FromArgb(255, 30, 30, 46);
-                _defaultFg = Color.FromArgb(255, 205, 214, 244);
+                _defaultBg = Color.FromArgb(255, 0x1e, 0x1e, 0x2e);
+                _defaultFg = Color.FromArgb(255, 0xcd, 0xd6, 0xf4);
                 _ansiColors = CatppuccinMochaColors;
-                _selectionBg = Color.FromArgb(255, 88, 91, 112);
+                _selectionBg = Color.FromArgb(255, 0x31, 0x32, 0x44);
             }
             else if (settings.ColorScheme == "Tokyo Night")
             {
-                _defaultBg = Color.FromArgb(255, 26, 27, 38);
-                _defaultFg = Color.FromArgb(255, 192, 202, 245);
+                _defaultBg = Color.FromArgb(255, 0x1a, 0x1b, 0x26);
+                _defaultFg = Color.FromArgb(255, 0xc0, 0xca, 0xf5);
                 _ansiColors = TokyoNightColors;
-                _selectionBg = Color.FromArgb(255, 65, 72, 104);
-            }
-            else if (settings.ColorScheme == "Nord")
-            {
-                _defaultBg = Color.FromArgb(255, 46, 52, 64);
-                _defaultFg = Color.FromArgb(255, 216, 222, 233);
-                _ansiColors = NordColors;
-                _selectionBg = Color.FromArgb(255, 67, 76, 94);
+                _selectionBg = Color.FromArgb(255, 0x33, 0x46, 0x7c);
             }
             else if (settings.ColorScheme == "Gruvbox Dark")
             {
-                _defaultBg = Color.FromArgb(255, 40, 40, 40);
-                _defaultFg = Color.FromArgb(255, 235, 219, 178);
+                _defaultBg = Color.FromArgb(255, 0x28, 0x28, 0x28);
+                _defaultFg = Color.FromArgb(255, 0xeb, 0xdb, 0xb2);
                 _ansiColors = GruvboxDarkColors;
-                _selectionBg = Color.FromArgb(255, 80, 73, 69);
+                _selectionBg = Color.FromArgb(255, 0x50, 0x49, 0x45);
+            }
+            else if (settings.ColorScheme == "Ayu Dark")
+            {
+                _defaultBg = Color.FromArgb(255, 0x0f, 0x14, 0x19);
+                _defaultFg = Color.FromArgb(255, 0xe6, 0xe1, 0xcf);
+                _ansiColors = AyuDarkColors;
+                _selectionBg = Color.FromArgb(255, 0x1f, 0x24, 0x30);
+            }
+            else if (settings.ColorScheme == "Material Dark")
+            {
+                _defaultBg = Color.FromArgb(255, 0x26, 0x32, 0x38);
+                _defaultFg = Color.FromArgb(255, 0xee, 0xff, 0xff);
+                _ansiColors = MaterialDarkColors;
+                _selectionBg = Color.FromArgb(255, 0x37, 0x47, 0x4f);
+            }
+            else if (settings.ColorScheme == "Atom One Dark")
+            {
+                _defaultBg = Color.FromArgb(255, 0x28, 0x2c, 0x34);
+                _defaultFg = Color.FromArgb(255, 0xab, 0xb2, 0xbf);
+                _ansiColors = AtomOneDarkColors;
+                _selectionBg = Color.FromArgb(255, 0x3e, 0x44, 0x51);
+            }
+            else if (settings.ColorScheme == "Solarized Dark")
+            {
+                _defaultBg = Color.FromArgb(255, 0x00, 0x2b, 0x36);
+                _defaultFg = Color.FromArgb(255, 0x83, 0x94, 0x96);
+                _ansiColors = SolarizedDarkColors;
+                _selectionBg = Color.FromArgb(255, 0x07, 0x36, 0x42);
+            }
+            else if (settings.ColorScheme == "Dracula")
+            {
+                _defaultBg = Color.FromArgb(255, 0x28, 0x2a, 0x36);
+                _defaultFg = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
+                _ansiColors = DraculaColors;
+                _selectionBg = Color.FromArgb(255, 0x44, 0x47, 0x5a);
+            }
+            else if (settings.ColorScheme == "Monokai")
+            {
+                _defaultBg = Color.FromArgb(255, 0x27, 0x28, 0x22);
+                _defaultFg = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
+                _ansiColors = MonokaiColors;
+                _selectionBg = Color.FromArgb(255, 0x49, 0x48, 0x3e);
+            }
+            else if (settings.ColorScheme == "Nord")
+            {
+                _defaultBg = Color.FromArgb(255, 0x2e, 0x34, 0x40);
+                _defaultFg = Color.FromArgb(255, 0xd8, 0xde, 0xe9);
+                _ansiColors = NordColors;
+                _selectionBg = Color.FromArgb(255, 0x43, 0x4c, 0x5e);
+            }
+
+else if (settings.ColorScheme == "Termark Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xff, 0xff, 0xff);
+                _defaultFg = Color.FromArgb(255, 0x1f, 0x23, 0x28);
+                _ansiColors = TermarkLightColors;
+                _selectionBg = Color.FromArgb(0x33, 0x09, 0x69, 0xda);
+            }
+            else if (settings.ColorScheme == "Rose Pine Dawn")
+            {
+                _defaultBg = Color.FromArgb(255, 0xfa, 0xf4, 0xed);
+                _defaultFg = Color.FromArgb(255, 0x57, 0x52, 0x79);
+                _ansiColors = RosePineDawnColors;
+                _selectionBg = Color.FromArgb(255, 0xf2, 0xe9, 0xe1);
+            }
+            else if (settings.ColorScheme == "Catppuccin Latte")
+            {
+                _defaultBg = Color.FromArgb(255, 0xef, 0xf1, 0xf5);
+                _defaultFg = Color.FromArgb(255, 0x4c, 0x4f, 0x69);
+                _ansiColors = CatppuccinLatteColors;
+                _selectionBg = Color.FromArgb(255, 0xe6, 0xe9, 0xef);
+            }
+            else if (settings.ColorScheme == "Tokyo Day")
+            {
+                _defaultBg = Color.FromArgb(255, 0xff, 0xff, 0xff);
+                _defaultFg = Color.FromArgb(255, 0x37, 0x60, 0xbf);
+                _ansiColors = TokyoDayColors;
+                _selectionBg = Color.FromArgb(255, 0xe5, 0xe1, 0xed);
+            }
+            else if (settings.ColorScheme == "Gruvbox Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xfb, 0xf1, 0xc7);
+                _defaultFg = Color.FromArgb(255, 0x3c, 0x38, 0x36);
+                _ansiColors = GruvboxLightColors;
+                _selectionBg = Color.FromArgb(255, 0xf2, 0xe5, 0xbc);
+            }
+            else if (settings.ColorScheme == "Ayu Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xfa, 0xfa, 0xfa);
+                _defaultFg = Color.FromArgb(255, 0x5c, 0x67, 0x73);
+                _ansiColors = AyuLightColors;
+                _selectionBg = Color.FromArgb(255, 0xf0, 0xee, 0xe4);
+            }
+            else if (settings.ColorScheme == "Material Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xff, 0xff, 0xff);
+                _defaultFg = Color.FromArgb(255, 0x26, 0x32, 0x38);
+                _ansiColors = MaterialLightColors;
+                _selectionBg = Color.FromArgb(255, 0xee, 0xeb, 0xee);
+            }
+            else if (settings.ColorScheme == "Atom One Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xfa, 0xfa, 0xfa);
+                _defaultFg = Color.FromArgb(255, 0x38, 0x3a, 0x42);
+                _ansiColors = AtomOneLightColors;
+                _selectionBg = Color.FromArgb(255, 0xe5, 0xeb, 0xf1);
+            }
+            else if (settings.ColorScheme == "Solarized Light")
+            {
+                _defaultBg = Color.FromArgb(255, 0xfd, 0xf6, 0xe3);
+                _defaultFg = Color.FromArgb(255, 0x65, 0x7b, 0x83);
+                _ansiColors = SolarizedLightColors;
+                _selectionBg = Color.FromArgb(255, 0xee, 0xe8, 0xd5);
             }
             else // One Dark / Default
             {

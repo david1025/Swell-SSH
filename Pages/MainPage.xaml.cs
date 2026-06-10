@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using SwellSSH.Models;
 using SwellSSH.Services;
 using SwellSSH.Terminal;
@@ -119,6 +120,22 @@ namespace SwellSSH.Pages
         private readonly ConnectionStorage _storage = new();
         private readonly KnownHostsService _knownHosts = new();
         public ObservableCollection<SidebarItemViewModel> FlatSidebarItems { get; } = new();
+        public ObservableCollection<ThemeViewModel> Themes { get; } = new();
+        public ObservableCollection<SnippetViewModel> Snippets { get; } = new();
+        private ThemeViewModel? _selectedTheme;
+        public ThemeViewModel? SelectedTheme
+        {
+            get => _selectedTheme;
+            set
+            {
+                if (_selectedTheme != value)
+                {
+                    _selectedTheme = value;
+                    if (value != null)
+                        _ = ApplyThemeAsync(value.Name);
+                }
+            }
+        }
         private readonly List<ConnectionGroupViewModel> _groups = new();
         // Map profileId → ViewModel for fast stats lookup
         private readonly Dictionary<string, ConnectionItemViewModel> _vmById = new();
@@ -134,6 +151,12 @@ namespace SwellSSH.Pages
 
             // Subscribe to monitoring stats updates
             ServerMonitorService.Instance.StatsUpdated += OnStatsUpdated;
+
+            LoadThemes();
+            _ = LoadSnippetsAsync();
+            
+            // Set initial Sidebar Tab
+            SidebarTabButton_Click(TabSftpButton, new RoutedEventArgs());
 
             this.Unloaded += (_, _) =>
             {
@@ -337,30 +360,24 @@ namespace SwellSSH.Pages
             });
         }
 
-        /// <summary>将 TabStripFooter 主题菜单的选中项与当前配色方案对齐。</summary>
+        /// <summary>使侧边栏的下拉框与当前配色方案对齐</summary>
         private void SyncThemeMenuCheckedState(string colorScheme)
         {
-            // Map of theme name -> RadioMenuFlyoutItem
-            var map = new System.Collections.Generic.Dictionary<string, RadioMenuFlyoutItem>
+            var matchedTheme = Themes.FirstOrDefault(t => t.Name == colorScheme);
+            if (matchedTheme != null)
             {
-                ["One Dark"]        = ThemeOneDark,
-                ["Dracula"]         = ThemeDracula,
-                ["Solarized Dark"]  = ThemeSolarized,
-                ["Catppuccin Mocha"]= ThemeCatppuccin,
-                ["Tokyo Night"]     = ThemeTokyoNight,
-                ["Nord"]            = ThemeNord,
-                ["Gruvbox Dark"]    = ThemeGruvbox,
-                ["Default Light"]   = ThemeDefaultLight,
-            };
-
-            foreach (var kv in map)
-                kv.Value.IsChecked = kv.Key == colorScheme;
+                SelectedTheme = matchedTheme;
+            }
         }
 
         private void UpdateEmptyState()
         {
+            var isEmpty = TerminalTabView.TabItems.Count == 0;
             if (EmptyStatePanel != null)
-                EmptyStatePanel.Visibility = TerminalTabView.TabItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+                EmptyStatePanel.Visibility = isEmpty ? Visibility.Visible : Visibility.Collapsed;
+            
+            if (TerminalTabView != null)
+                TerminalTabView.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
         }
 
         // ── Connection list actions ───────────────────────────────────────────
@@ -575,6 +592,220 @@ namespace SwellSSH.Pages
             await LoadConnectionsAsync();
         }
 
+        private void SidebarThemesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.AddedItems.Count > 0 && e.AddedItems[0] is ThemeViewModel theme)
+            {
+                SelectedTheme = theme;
+            }
+        }
+
+        private async Task ApplyThemeAsync(string colorScheme)
+        {
+            if (_cachedSettings == null)
+                _cachedSettings = await _storage.LoadSettingsAsync();
+
+            _cachedSettings.ColorScheme = colorScheme;
+            await _storage.SaveSettingsAsync(_cachedSettings);
+            TerminalSettings.NotifyGlobalSettingsChanged(_cachedSettings);
+        }
+
+        private void LoadThemes()
+        {
+            // 浅色主题 (Light Themes)
+            Themes.Add(new ThemeViewModel { Name = "Atom One Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfa, 0xfa, 0xfa)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x38, 0x3a, 0x42)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe4, 0x56, 0x49)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x50, 0xa1, 0x4f)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x40, 0x78, 0xf2)) });
+            Themes.Add(new ThemeViewModel { Name = "Ayu Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfa, 0xfa, 0xfa)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x5c, 0x67, 0x73)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x33, 0x33)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x86, 0xb3, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x36, 0xa3, 0xd9)) });
+            Themes.Add(new ThemeViewModel { Name = "Default Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 250, 250, 250)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 50, 50, 50)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 205, 40, 40)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 155, 0)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0, 155, 165)) });
+            Themes.Add(new ThemeViewModel { Name = "Gruvbox Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfb, 0xf1, 0xc7)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x3c, 0x38, 0x36)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xcc, 0x24, 0x1d)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x98, 0x97, 0x1a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x45, 0x85, 0x88)) });
+            Themes.Add(new ThemeViewModel { Name = "Material Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0xff, 0xff)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x26, 0x32, 0x38)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe5, 0x39, 0x35)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x43, 0xa0, 0x47)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1e, 0x88, 0xe5)) });
+            Themes.Add(new ThemeViewModel { Name = "Rose Pine Dawn", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfa, 0xf4, 0xed)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x57, 0x52, 0x79)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xb4, 0x63, 0x7a)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x69, 0x83)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x56, 0x94, 0x9f)) });
+            Themes.Add(new ThemeViewModel { Name = "Solarized Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfd, 0xf6, 0xe3)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x65, 0x7b, 0x83)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xdc, 0x32, 0x2f)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x85, 0x99, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x26, 0x8b, 0xd2)) });
+            Themes.Add(new ThemeViewModel { Name = "Termark Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0xff, 0xff)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1f, 0x23, 0x28)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xcf, 0x22, 0x2e)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x11, 0x63, 0x29)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x09, 0x69, 0xda)) });
+            Themes.Add(new ThemeViewModel { Name = "Tokyo Day", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0xff, 0xff)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x37, 0x60, 0xbf)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf5, 0x2a, 0x65)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x58, 0x75, 0x39)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x18, 0x80, 0x92)) });
+
+            // 深色主题 (Dark Themes)
+            Themes.Add(new ThemeViewModel { Name = "Atom One Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x2c, 0x34)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xab, 0xb2, 0xbf)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe0, 0x6c, 0x75)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x98, 0xc3, 0x79)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x61, 0xaf, 0xef)) });
+            Themes.Add(new ThemeViewModel { Name = "Ayu Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x0f, 0x14, 0x19)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe6, 0xe1, 0xcf)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x33, 0x33)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x86, 0xb3, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x36, 0xa3, 0xd9)) });
+            Themes.Add(new ThemeViewModel { Name = "Catppuccin Latte", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xef, 0xf1, 0xf5)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x4c, 0x4f, 0x69)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xd2, 0x0f, 0x39)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x40, 0xa0, 0x2b)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1e, 0x66, 0xf5)) });
+            Themes.Add(new ThemeViewModel { Name = "Catppuccin Mocha", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1e, 0x1e, 0x2e)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xcd, 0xd6, 0xf4)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf3, 0x8b, 0xa8)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xa6, 0xe3, 0xa1)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x89, 0xb4, 0xfa)) });
+            Themes.Add(new ThemeViewModel { Name = "Cobalt2", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x13, 0x27, 0x38)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0xff, 0xff)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x5d, 0x38)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x3a, 0xd9, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0x88, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Cyberpunk", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x0d, 0x02, 0x21)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x00, 0x6e)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x00, 0x6e)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x83, 0x38, 0xec)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x3a, 0x86, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Dracula", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x2a, 0x36)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf8, 0xf8, 0xf2)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x55, 0x55)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x50, 0xfa, 0x7b)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x61, 0xbf, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Flexoki Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x10, 0x0f, 0x0f)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xce, 0xcd, 0xc3)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xaf, 0x30, 0x29)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x66, 0x80, 0x0b)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x20, 0x5e, 0xa6)) });
+            Themes.Add(new ThemeViewModel { Name = "Gruvbox Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x28, 0x28)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xeb, 0xdb, 0xb2)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xcc, 0x24, 0x1d)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x98, 0x97, 0x1a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x45, 0x85, 0x88)) });
+            Themes.Add(new ThemeViewModel { Name = "Hacker Green", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x0d, 0x02, 0x08)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0xff, 0x41)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x00, 0x00)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0xff, 0x41)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0x5f, 0x00)) });
+            Themes.Add(new ThemeViewModel { Name = "Kanagawa Wave", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1f, 0x1f, 0x28)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xdc, 0xd7, 0xba)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc3, 0x40, 0x43)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x76, 0x94, 0x6a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x7e, 0x9c, 0xd8)) });
+            Themes.Add(new ThemeViewModel { Name = "Material Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x26, 0x32, 0x38)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xee, 0xff, 0xff)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf0, 0x71, 0x78)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc3, 0xe8, 0x8d)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x82, 0xb1, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Monokai", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x27, 0x28, 0x22)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf8, 0xf8, 0xf2)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf9, 0x26, 0x72)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xa6, 0xe2, 0x2e)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x66, 0xd9, 0xef)) });
+            Themes.Add(new ThemeViewModel { Name = "Night Owl", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x01, 0x16, 0x27)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xd6, 0xde, 0xeb)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xef, 0x53, 0x50)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x22, 0xda, 0x6e)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x82, 0xaa, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Nord", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x2e, 0x34, 0x40)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xd8, 0xde, 0xe9)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xbf, 0x61, 0x6a)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xa3, 0xbe, 0x8c)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x81, 0xa1, 0xc1)) });
+            Themes.Add(new ThemeViewModel { Name = "One Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 12, 12, 12)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 204, 204, 204)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 224, 108, 117)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 152, 195, 121)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 97, 175, 239)) });
+            Themes.Add(new ThemeViewModel { Name = "Rose Pine", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x19, 0x17, 0x24)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe0, 0xde, 0xf4)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xeb, 0x6f, 0x92)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x31, 0x74, 0x8f)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x9c, 0xcf, 0xd8)) });
+            Themes.Add(new ThemeViewModel { Name = "Solarized Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0x2b, 0x36)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x83, 0x94, 0x96)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xdc, 0x32, 0x2f)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x85, 0x99, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x26, 0x8b, 0xd2)) });
+            Themes.Add(new ThemeViewModel { Name = "Termark Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x21, 0x21, 0x21)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe6, 0xed, 0xf3)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x7b, 0x72)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x7e, 0xe7, 0x87)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x79, 0xc0, 0xff)) });
+            Themes.Add(new ThemeViewModel { Name = "Tokyo Night", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1a, 0x1b, 0x26)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc0, 0xca, 0xf5)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf7, 0x76, 0x8e)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x9e, 0xce, 0x6a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x7a, 0xa2, 0xf7)) });
+        
+}
+
+        private async Task LoadSnippetsAsync()
+        {
+            var loaded = await _storage.LoadSnippetsAsync();
+            Snippets.Clear();
+            if (loaded.Count == 0)
+            {
+                // Provide some defaults if empty
+                loaded.Add(new SnippetViewModel { Name = "系统更新", Command = "sudo apt update && sudo apt upgrade -y" });
+                loaded.Add(new SnippetViewModel { Name = "网络连接状态", Command = "netstat -ntlp" });
+                await _storage.SaveSnippetsAsync(loaded);
+            }
+            foreach (var s in loaded) Snippets.Add(s);
+        }
+
+        private async void NewSnippetButton_Click(object sender, RoutedEventArgs e)
+        {
+            var snippet = new SnippetViewModel();
+            if (await ShowSnippetDialogAsync(snippet, "新建代码片段"))
+            {
+                Snippets.Add(snippet);
+                await _storage.SaveSnippetsAsync(Snippets.ToList());
+            }
+        }
+
+        private async void EditSnippet_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is SnippetViewModel snippet)
+            {
+                if (await ShowSnippetDialogAsync(snippet, "编辑代码片段"))
+                {
+                    // Refresh UI
+                    int index = Snippets.IndexOf(snippet);
+                    if (index >= 0)
+                    {
+                        Snippets[index] = new SnippetViewModel { Id = snippet.Id, Name = snippet.Name, Command = snippet.Command };
+                    }
+                    await _storage.SaveSnippetsAsync(Snippets.ToList());
+                }
+            }
+        }
+
+        private async void DeleteSnippet_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is SnippetViewModel snippet)
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = this.XamlRoot,
+                    RequestedTheme = this.ActualTheme,
+                    Title = "删除代码片段",
+                    Content = $"确定要删除「{snippet.Name}」吗？",
+                    PrimaryButtonText = "删除",
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Close
+                };
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    var item = Snippets.FirstOrDefault(s => s.Id == snippet.Id);
+                    if (item != null) Snippets.Remove(item);
+                    await _storage.SaveSnippetsAsync(Snippets.ToList());
+                }
+            }
+        }
+
+        private void RunSnippet_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is SnippetViewModel snippet)
+            {
+                if (TerminalTabView.SelectedItem is TabViewItem tab && tab.Tag is TerminalSession session)
+                {
+                    session.SendText(snippet.Command + "\r");
+                }
+                else
+                {
+                    var dialog = new ContentDialog
+                    {
+                        XamlRoot = this.XamlRoot,
+                        RequestedTheme = this.ActualTheme,
+                        Title = "无法执行",
+                        Content = "请先打开或选中一个 SSH 终端会话。",
+                        CloseButtonText = "确定"
+                    };
+                    _ = dialog.ShowAsync();
+                }
+            }
+        }
+
+        private async Task<bool> ShowSnippetDialogAsync(SnippetViewModel snippet, string title)
+        {
+            var nameBox = new TextBox { Header = "名称", Text = snippet.Name, Margin = new Thickness(0,0,0,12) };
+            var commandBox = new TextBox 
+            { 
+                Header = "命令内容", 
+                Text = snippet.Command, 
+                AcceptsReturn = true, 
+                TextWrapping = TextWrapping.Wrap, 
+                Height = 150,
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas")
+            };
+
+            var panel = new StackPanel();
+            panel.Children.Add(nameBox);
+            panel.Children.Add(commandBox);
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = this.XamlRoot,
+                RequestedTheme = this.ActualTheme,
+                Title = title,
+                Content = panel,
+                PrimaryButtonText = "保存",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary
+            };
+
+            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+            {
+                if (string.IsNullOrWhiteSpace(nameBox.Text)) nameBox.Text = "未命名";
+                snippet.Name = nameBox.Text;
+                snippet.Command = commandBox.Text;
+                return true;
+            }
+            return false;
+        }
+
+        private void SidebarTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleButton btn && btn.Tag is string tag)
+            {
+                // Reset all
+                TabSftpButton.IsChecked = false;
+                TabSnippetsButton.IsChecked = false;
+                TabHistoryButton.IsChecked = false;
+                TabThemesButton.IsChecked = false;
+                
+                TabSftpButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                TabSnippetsButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                TabHistoryButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                TabThemesButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+                SidebarSftpView.Visibility = Visibility.Collapsed;
+                SidebarSnippetsView.Visibility = Visibility.Collapsed;
+                SidebarHistoryView.Visibility = Visibility.Collapsed;
+                SidebarThemesView.Visibility = Visibility.Collapsed;
+
+                // Set Active
+                btn.IsChecked = true;
+                btn.Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"];
+                
+                switch (tag)
+                {
+                    case "0": SidebarSftpView.Visibility = Visibility.Visible; break;
+                    case "1": SidebarSnippetsView.Visibility = Visibility.Visible; break;
+                    case "2": SidebarHistoryView.Visibility = Visibility.Visible; break;
+                    case "3": SidebarThemesView.Visibility = Visibility.Visible; break;
+                }
+            }
+        }
+
         // ── Connection list actions ───────────────────────────────────────────
 
         private void ConnectionListView_DoubleTapped(object sender,
@@ -584,29 +815,59 @@ namespace SwellSSH.Pages
                 OpenTerminalTab(vm.Profile);
         }
 
-        private void TerminalTabView_AddTabButtonClick(TabView sender, object args) { }
-
-        // ── Theme picker (TabStripFooter) ──────────────────────────────────────
+        // ── Terminal Sidebar ────────────────────────────────────────
 
         private TerminalSettings? _cachedSettings;
 
-        private async void ThemeMenu_Click(object sender, RoutedEventArgs e)
+        public void ToggleSidebar()
         {
-            if (sender is not RadioMenuFlyoutItem item) return;
-            string scheme = item.Tag?.ToString() ?? "One Dark";
-
-            if (_cachedSettings == null)
-                _cachedSettings = await _storage.LoadSettingsAsync();
-
-            _cachedSettings.ColorScheme = scheme;
-            await _storage.SaveSettingsAsync(_cachedSettings);
-            
-            TerminalSettings.NotifyGlobalSettingsChanged(_cachedSettings);
+            TerminalSplitView.IsPaneOpen = !TerminalSplitView.IsPaneOpen;
         }
+
+
+
+        private void TerminalTabView_AddTabButtonClick(TabView sender, object args)
+        {
+            if (TerminalTabView.SelectedItem is TabViewItem tab && tab.Tag is TerminalSession session)
+            {
+                // Duplicate the current connection
+                OpenTerminalTab(session.Profile);
+            }
+        }
+
+
 
         private void TerminalTabView_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
         {
             CloseTab(args.Tab);
+        }
+
+        private void TerminalTabView_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            var tabContainer = FindVisualChildByName(TerminalTabView, "TabContainerGrid");
+            if (tabContainer != null)
+            {
+                // Align Sidebar with exact height of the TabStrip
+                if (SidebarPaneGrid != null)
+                {
+                    SidebarPaneGrid.Margin = new Thickness(0, tabContainer.ActualHeight, 0, 0);
+                }
+            }
+        }
+
+        private FrameworkElement? FindVisualChildByName(DependencyObject parent, string name)
+        {
+            for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+                if (child is FrameworkElement fe && fe.Name == name)
+                    return fe;
+
+                var result = FindVisualChildByName(child, name);
+                if (result != null)
+                    return result;
+            }
+            return null;
         }
 
         private void CloseTab(TabViewItem tab)

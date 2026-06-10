@@ -24,6 +24,9 @@ namespace SwellSSH.Services
         private static readonly string SettingsFile =
             Path.Combine(AppDataDir, "settings.json");
 
+        private static readonly string SnippetsFile =
+            Path.Combine(AppDataDir, "snippets.json");
+
         private static readonly JsonSerializerOptions JsonOptions = new()
         {
             WriteIndented = true
@@ -79,6 +82,32 @@ namespace SwellSSH.Services
             Directory.CreateDirectory(AppDataDir);
             string json = JsonSerializer.Serialize(settings, JsonOptions);
             await File.WriteAllTextAsync(SettingsFile, json);
+        }
+
+        // ── Snippets ────────────────────────────────────────────────────────────
+
+        public async Task<List<SnippetViewModel>> LoadSnippetsAsync()
+        {
+            try
+            {
+                if (!File.Exists(SnippetsFile))
+                    return new List<SnippetViewModel>();
+
+                string json = await File.ReadAllTextAsync(SnippetsFile);
+                return JsonSerializer.Deserialize<List<SnippetViewModel>>(json, JsonOptions)
+                       ?? new List<SnippetViewModel>();
+            }
+            catch
+            {
+                return new List<SnippetViewModel>();
+            }
+        }
+
+        public async Task SaveSnippetsAsync(List<SnippetViewModel> snippets)
+        {
+            Directory.CreateDirectory(AppDataDir);
+            string json = JsonSerializer.Serialize(snippets, JsonOptions);
+            await File.WriteAllTextAsync(SnippetsFile, json);
         }
 
         // ── DPAPI Encryption Helpers ────────────────────────────────────────────

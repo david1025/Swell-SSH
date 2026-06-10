@@ -217,6 +217,14 @@ namespace SwellSSH
 
         private bool _isThemeTransitioning = false;
 
+        private void GlobalToggleSidebarButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContentFrame.Content is Pages.MainPage mainPage)
+            {
+                mainPage.ToggleSidebar();
+            }
+        }
+
         private async void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
         {
             if (_isThemeTransitioning) return;

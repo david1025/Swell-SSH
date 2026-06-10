@@ -586,6 +586,12 @@ else if (settings.ColorScheme == "Termark Light")
         {
             _isLoaded = true;
             this.Focus(FocusState.Programmatic);
+            if (_session != null)
+            {
+                _session.Buffer.BufferChanged -= RequestRedraw;
+                _session.Buffer.BufferChanged += RequestRedraw;
+            }
+            RequestRedraw();
         }
 
         private void UserControl_Unloaded(object sender, RoutedEventArgs e)
@@ -595,8 +601,16 @@ else if (settings.ColorScheme == "Termark Light")
             {
                 _session.Buffer.BufferChanged -= RequestRedraw;
             }
-            Canvas.RemoveFromVisualTree();
-            Canvas = null!;
+            // Do NOT call Canvas.RemoveFromVisualTree() here so it survives NavigationCacheMode
+        }
+
+        public void Dispose()
+        {
+            if (Canvas != null)
+            {
+                Canvas.RemoveFromVisualTree();
+                Canvas = null!;
+            }
         }
 
         private void Canvas_CreateResources(CanvasControl sender, Microsoft.Graphics.Canvas.UI.CanvasCreateResourcesEventArgs args)

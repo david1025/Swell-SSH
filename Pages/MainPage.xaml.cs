@@ -876,6 +876,15 @@ namespace SwellSSH.Pages
             if (tab.Tag is TerminalSession session)
                 session.Dispose();
 
+            if (tab.Content is Grid tabContent)
+            {
+                var tv = tabContent.Children.OfType<TerminalView>().FirstOrDefault();
+                if (tv != null)
+                {
+                    tv.Dispose();
+                }
+            }
+
             TerminalTabView.TabItems.Remove(tab);
             UpdateEmptyState();
         }

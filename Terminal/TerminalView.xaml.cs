@@ -597,6 +597,11 @@ else if (settings.ColorScheme == "Termark Light")
         private void UserControl_Unloaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = false;
+            // 重置绘制状态标志，防止 NavigationCacheMode 下从设置页返回时
+            // 遗留的异步 debounce lambda 使 _isDrawing 永久为 true，
+            // 导致 RequestRedraw 无法启动新的绘制循环（界面冻结）。
+            _isDrawing = false;
+            _needsRedraw = false;
             if (_session != null)
             {
                 _session.Buffer.BufferChanged -= RequestRedraw;

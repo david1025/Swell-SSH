@@ -143,6 +143,7 @@ namespace SwellSSH.Pages
         public MainPage()
         {
             this.InitializeComponent();
+            this.NavigationCacheMode = Microsoft.UI.Xaml.Navigation.NavigationCacheMode.Required;
             _ = LoadConnectionsAsync();
 
             if (MainWindow.Instance != null)

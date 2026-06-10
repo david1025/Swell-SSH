@@ -741,6 +741,7 @@ else if (settings.ColorScheme == "Termark Light")
                 int startX = 0;
                 TerminalCell currentAttr = row.Cells[0];
                 textChunk.Clear();
+                int chunkLogicalWidth = 0;
 
                 for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
                 {
@@ -754,32 +755,35 @@ else if (settings.ColorScheme == "Termark Light")
                     // Draw cursor background block (only if we are not scrolled up)
                     if (x == buffer.CursorX && y == (buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset) && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
                     {
-                        if (textChunk.Length > 0)
+                        if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                         {
-                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr);
+                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                             textChunk.Clear();
+                            chunkLogicalWidth = 0;
                         }
                         
                         var invertedAttr = cell;
                         invertedAttr.FgColor = (uint)((_defaultBg.A << 24) | (_defaultBg.R << 16) | (_defaultBg.G << 8) | _defaultBg.B);
                         
+                        string cursorText = cell.Char == '\0' ? "" : cell.Char.ToString();
+
                         if (_settings.CursorStyle == "Underline")
                         {
                             ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
                                         (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _defaultFg, 2);
-                            DrawChunk(ds, cell.Char.ToString(), x, y, cell);
+                            DrawChunk(ds, cursorText, x, y, cell, 1);
                         }
                         else if (_settings.CursorStyle == "Bar")
                         {
                             ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
                                         (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _defaultFg, 2);
-                            DrawChunk(ds, cell.Char.ToString(), x, y, cell);
+                            DrawChunk(ds, cursorText, x, y, cell, 1);
                         }
                         else
                         {
                             ds.FillRectangle((float)(x * _charWidth), (float)(y * _charHeight),
                                              (float)_charWidth, (float)_charHeight, _defaultFg);
-                            DrawChunk(ds, cell.Char.ToString(), x, y, invertedAttr);
+                            DrawChunk(ds, cursorText, x, y, invertedAttr, 1);
                         }
                         
                         startX = x + 1;
@@ -791,26 +795,31 @@ else if (settings.ColorScheme == "Termark Light")
                         cell.BgColor != currentAttr.BgColor ||
                         cell.IsBold != currentAttr.IsBold)
                     {
-                        if (textChunk.Length > 0)
+                        if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                         {
-                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr);
+                            DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                             textChunk.Clear();
+                            chunkLogicalWidth = 0;
                         }
                         startX = x;
                         currentAttr = cell;
                     }
 
-                    textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
+                    if (cell.Char != '\0')
+                    {
+                        textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
+                    }
+                    chunkLogicalWidth++;
                 }
 
-                if (textChunk.Length > 0)
+                if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                 {
-                    DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr);
+                    DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                 }
             }
         }
 
-        private void DrawChunk(CanvasDrawingSession ds, string text, int startX, int y, TerminalCell attr)
+        private void DrawChunk(CanvasDrawingSession ds, string text, int startX, int y, TerminalCell attr, int logicalWidth)
         {
             if (string.IsNullOrWhiteSpace(text) && attr.BgColor == TerminalCell.DefaultBg) return;
 
@@ -820,7 +829,7 @@ else if (settings.ColorScheme == "Termark Light")
             if (attr.BgColor != TerminalCell.DefaultBg)
             {
                 Color bg = ParseColor(attr.BgColor, _defaultBg);
-                ds.FillRectangle(xPos, yPos, (float)(text.Length * _charWidth), (float)_charHeight, bg);
+                ds.FillRectangle(xPos, yPos, (float)(logicalWidth * _charWidth), (float)_charHeight, bg);
             }
 
             if (!string.IsNullOrWhiteSpace(text))

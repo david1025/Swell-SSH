@@ -134,7 +134,8 @@ namespace SwellSSH.Terminal
                 for (int x = sX; x <= eX; x++)
                 {
                     char c = row.Cells[x].Char;
-                    lineSb.Append(c == 0 ? ' ' : c);
+                    if (c == '\0') continue; // Skip wide char filler
+                    lineSb.Append(c);
                 }
 
                 // If not the last line of selection, strip trailing spaces and append newline
@@ -155,9 +156,20 @@ namespace SwellSSH.Terminal
 
         public void Print(string text)
         {
-            foreach (char c in text)
+            for (int i = 0; i < text.Length; i++)
             {
-                if (CursorX >= Cols)
+                char c = text[i];
+                bool isSurrogate = char.IsHighSurrogate(c) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]);
+                int w = isSurrogate ? 2 : WcWidth(c);
+
+                if (w == 2 && CursorX == Cols - 1)
+                {
+                    Lines[CursorY].Cells[CursorX] = _currentAttr;
+                    Lines[CursorY].Cells[CursorX].Char = ' ';
+                    CursorX = 0;
+                    CursorDown();
+                }
+                else if (CursorX >= Cols)
                 {
                     CursorX = 0;
                     CursorDown();
@@ -166,8 +178,45 @@ namespace SwellSSH.Terminal
                 Lines[CursorY].Cells[CursorX] = _currentAttr;
                 Lines[CursorY].Cells[CursorX].Char = c;
                 CursorX++;
+
+                if (isSurrogate)
+                {
+                    i++;
+                    Lines[CursorY].Cells[CursorX] = _currentAttr;
+                    Lines[CursorY].Cells[CursorX].Char = text[i];
+                    CursorX++;
+                }
+                else if (w == 2)
+                {
+                    Lines[CursorY].Cells[CursorX] = _currentAttr;
+                    Lines[CursorY].Cells[CursorX].Char = '\0';
+                    CursorX++;
+                }
             }
             BufferChanged?.Invoke();
+        }
+
+        private int WcWidth(char c)
+        {
+            if (c >= 0x1100 &&
+                (c <= 0x115F ||
+                 c == 0x2329 || c == 0x232A ||
+                 (c >= 0x2E80 && c <= 0xA4CF && c != 0x303F) ||
+                 (c >= 0xAC00 && c <= 0xD7A3) ||
+                 (c >= 0xF900 && c <= 0xFAFF) ||
+                 (c >= 0xFE10 && c <= 0xFE19) ||
+                 (c >= 0xFE30 && c <= 0xFE6F) ||
+                 (c >= 0xFF00 && c <= 0xFF60) ||
+                 (c >= 0xFFE0 && c <= 0xFFE6)))
+            {
+                return 2;
+            }
+            // Some emojis in BMP
+            if (c >= 0x231A && c <= 0x2B55)
+            {
+                return 2; 
+            }
+            return 1;
         }
 
         public void ExecuteControlCharacter(byte b)

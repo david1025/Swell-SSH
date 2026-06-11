@@ -1,4 +1,4 @@
-[https://github.com/yaog6700-bit/Swell-SSH](https://sponsorship.forztn.com/github/yaog6700-bit/Swell-SSH)
+赞助：[https://github.com/yaog6700-bit/Swell-SSH](https://sponsorship.forztn.com/github/yaog6700-bit/Swell-SSH)
 
 # SwellSSH
 

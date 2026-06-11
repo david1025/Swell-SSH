@@ -164,7 +164,8 @@
             <!-- Drag region for custom title bar -->
             <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
                   IsHitTestVisible="False"
-                  VerticalAlignment="Top" Margin="88,0,140,0"/>
+                  VerticalAlignment="Top"
+                  Margin="0,0,140,0"/>
 
         </Grid>
         <!-- 新手引导遮罩层：懒加载，首次需要时才由代码注入 OnboardingControl 实例 -->

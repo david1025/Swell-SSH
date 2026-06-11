@@ -401,6 +401,8 @@ namespace SwellSSH.Pages
             
             if (TerminalTabView != null)
                 TerminalTabView.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+
+            UpdateTitleBarInteractiveRegions();
         }
 
         // ── Connection list actions ───────────────────────────────────────────
@@ -1124,6 +1126,64 @@ namespace SwellSSH.Pages
                 {
                     SidebarPaneGrid.Margin = new Thickness(0, tabContainer.ActualHeight, 0, 0);
                 }
+            }
+
+            UpdateTitleBarInteractiveRegions();
+        }
+
+        private void UpdateTitleBarInteractiveRegions()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var mainWindow = MainWindow.Instance;
+                if (mainWindow == null || TerminalTabView == null || TerminalTabView.Visibility != Visibility.Visible)
+                {
+                    mainWindow?.SetTitleBarPassthroughRects(Array.Empty<Windows.Foundation.Rect>());
+                    return;
+                }
+
+                var root = mainWindow.TitleBarCoordinateRoot;
+                var rects = new List<Windows.Foundation.Rect>();
+
+                foreach (var tabItem in FindVisualChildren<TabViewItem>(TerminalTabView))
+                    AddTopRegionRect(tabItem, root, rects);
+
+                foreach (var button in FindVisualChildren<Button>(TerminalTabView))
+                    AddTopRegionRect(button, root, rects);
+
+                mainWindow.SetTitleBarPassthroughRects(rects);
+            });
+        }
+
+        private static void AddTopRegionRect(FrameworkElement element, UIElement root, List<Windows.Foundation.Rect> rects)
+        {
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0 || element.Visibility != Visibility.Visible)
+                return;
+
+            try
+            {
+                var point = element.TransformToVisual(root).TransformPoint(new Windows.Foundation.Point(0, 0));
+                var rect = new Windows.Foundation.Rect(point.X, point.Y, element.ActualWidth, element.ActualHeight);
+
+                if (rect.Y < 48 && rect.Y + rect.Height > 0)
+                    rects.Add(rect);
+            }
+            catch
+            {
+                // Layout may still be settling; the next size/update pass will refresh this.
+            }
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                    yield return typedChild;
+
+                foreach (var nestedChild in FindVisualChildren<T>(child))
+                    yield return nestedChild;
             }
         }
 

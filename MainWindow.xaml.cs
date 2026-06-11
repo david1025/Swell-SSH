@@ -1,11 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI;
-using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -27,7 +25,7 @@ namespace SwellSSH
         private ElementTheme _currentTheme = ElementTheme.Default;
 
         private readonly ConnectionStorage _storage = new();
-        private InputNonClientPointerSource? _nonClientPointerSource;
+        private readonly List<Windows.Foundation.Rect> _titleBarInteractiveRects = new();
 
         // BUG-04: 缓存 MinimizeOnClose 设置，避免 关闭事件里异步读取磁盘
         private bool _minimizeOnClose = true; // 默认安全化到托盘
@@ -47,7 +45,6 @@ namespace SwellSSH
 
             // Custom title bar
             ExtendsContentIntoTitleBar = true;
-            SetTitleBar(AppTitleBar);
             ConfigureTitleBarHitTesting();
 
             this.Title = "SwellSSH";
@@ -75,33 +72,86 @@ namespace SwellSSH
 
         private void ConfigureTitleBarHitTesting()
         {
-            _nonClientPointerSource = InputNonClientPointerSource.GetForWindowId(AppWindow.Id);
-            ContentWrapper.SizeChanged += (_, _) => UpdateTitleBarPassthroughRegion();
-            AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarPassthroughRegion();
-            DispatcherQueue.TryEnqueue(UpdateTitleBarPassthroughRegion);
+            ContentWrapper.SizeChanged += (_, _) => UpdateTitleBarDragRegions();
+            DispatcherQueue.TryEnqueue(UpdateTitleBarDragRegions);
         }
 
-        private void UpdateTitleBarPassthroughRegion()
+        public void SetTitleBarPassthroughRects(IEnumerable<Windows.Foundation.Rect> rects)
         {
-            if (_nonClientPointerSource == null || ContentWrapper.XamlRoot == null || AppTitleBar.ActualWidth <= 0)
+            _titleBarInteractiveRects.Clear();
+            _titleBarInteractiveRects.AddRange(rects);
+            UpdateTitleBarDragRegions();
+        }
+
+        private void UpdateTitleBarDragRegions()
+        {
+            if (ContentWrapper.XamlRoot == null || ContentWrapper.ActualWidth <= 0)
                 return;
 
             var scale = ContentWrapper.XamlRoot.RasterizationScale;
-            var transform = AppTitleBar.TransformToVisual(ContentWrapper);
-            var origin = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+            const double titleBarHeight = 48;
+            const double leftReserved = 88;
+            const double rightReserved = 140;
 
-            var passthroughRect = new RectInt32(
-                (int)Math.Round(origin.X * scale),
-                (int)Math.Round(origin.Y * scale),
-                (int)Math.Round(AppTitleBar.ActualWidth * scale),
-                (int)Math.Round(AppTitleBar.ActualHeight * scale));
+            var dragSegments = new List<Windows.Foundation.Rect>
+            {
+                new(leftReserved, 0, Math.Max(0, ContentWrapper.ActualWidth - leftReserved - rightReserved), titleBarHeight)
+            };
 
-            _nonClientPointerSource.SetRegionRects(
-                NonClientRegionKind.Passthrough,
-                passthroughRect.Width > 0 && passthroughRect.Height > 0
-                    ? new[] { passthroughRect }
-                    : Array.Empty<RectInt32>());
+            foreach (var interactiveRect in _titleBarInteractiveRects)
+                SubtractInteractiveRect(dragSegments, interactiveRect);
+
+            AppWindow.TitleBar.SetDragRectangles(
+                dragSegments
+                    .Where(rect => rect.Width > 0 && rect.Height > 0)
+                    .Select(rect => ToPhysicalRect(rect, scale))
+                    .ToArray());
         }
+
+        private static void SubtractInteractiveRect(
+            List<Windows.Foundation.Rect> dragSegments,
+            Windows.Foundation.Rect interactiveRect)
+        {
+            if (interactiveRect.Width <= 0 || interactiveRect.Height <= 0)
+                return;
+
+            for (int i = dragSegments.Count - 1; i >= 0; i--)
+            {
+                var segment = dragSegments[i];
+                var overlapLeft = Math.Max(segment.Left, interactiveRect.Left);
+                var overlapRight = Math.Min(segment.Right, interactiveRect.Right);
+
+                if (overlapRight <= overlapLeft)
+                    continue;
+
+                dragSegments.RemoveAt(i);
+
+                if (overlapLeft > segment.Left)
+                    dragSegments.Add(new Windows.Foundation.Rect(
+                        segment.Left,
+                        segment.Top,
+                        overlapLeft - segment.Left,
+                        segment.Height));
+
+                if (overlapRight < segment.Right)
+                    dragSegments.Add(new Windows.Foundation.Rect(
+                        overlapRight,
+                        segment.Top,
+                        segment.Right - overlapRight,
+                        segment.Height));
+            }
+        }
+
+        private static RectInt32 ToPhysicalRect(Windows.Foundation.Rect rect, double scale)
+        {
+            return new RectInt32(
+                (int)Math.Round(rect.X * scale),
+                (int)Math.Round(rect.Y * scale),
+                (int)Math.Round(rect.Width * scale),
+                (int)Math.Round(rect.Height * scale));
+        }
+
+        public FrameworkElement TitleBarCoordinateRoot => ContentWrapper;
 
         private async Task CheckForUpdatesAsync()
         {

@@ -1,6 +1,6 @@
 ## 🙏 致谢
 
-- 特别感谢 [FORZTN](https://sponsorship.forztn.com/github/yaog6700-bit/Swell-SSHb) 为本项目提供服务器资源支持。
+- 特别感谢 [ForZTN](https://sponsorship.forztn.com/github/yaog6700-bit/Swell-SSHb) 为本项目提供服务器资源支持。
 
 
 # SwellSSH

@@ -88,105 +88,9 @@
     </Page.Resources>
 
     <Grid>
-                <Grid.ColumnDefinitions>
-                    <!-- Connection list sidebar -->
-                    <ColumnDefinition Width="280" MinWidth="150" MaxWidth="600" />
-                    <ColumnDefinition Width="Auto" />
-                    <!-- Terminal tab area -->
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-        <!-- ── Left: Connection List ──────────────────────────────────── -->
-        <Grid Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- Wrap Header and Quick connect bar in a container to measure total height -->
-            <StackPanel x:Name="LeftHeaderContainer" Grid.Row="0" SizeChanged="LeftHeaderContainer_SizeChanged">
-                <!-- Header -->
-                <Grid Padding="16,12,16,8">
-                    <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}"/>
-                </Grid>
-
-                <!-- Quick connect bar -->
-                <Grid Padding="8,0,8,0" ColumnSpacing="4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox x:Name="QuickConnectBox"
-                             PlaceholderText="快速连接 user@host:port"
-                             FontSize="12"
-                             KeyDown="QuickConnectBox_KeyDown"/>
-                    <Button Grid.Column="1"
-                            Width="32" Height="32" Padding="0"
-                            ToolTipService.ToolTip="连接"
-                            Click="QuickConnectButton_Click">
-                        <FontIcon Glyph="&#xE768;" FontSize="13"/>
-                    </Button>
-                </Grid>
-            </StackPanel>
-
-            <!-- Connection list -->
-            <ListView
-                x:Name="ConnectionListView"
-                Grid.Row="1"
-                Margin="0,8,0,0"
-                SelectionMode="Single"
-                DoubleTapped="ConnectionListView_DoubleTapped"
-                ItemsSource="{x:Bind FlatSidebarItems, Mode=OneWay}"
-                ItemTemplateSelector="{StaticResource SidebarTemplateSelector}">
-                <!-- Disable default add/remove stuttering animation -->
-                <ListView.ItemContainerTransitions>
-                    <TransitionCollection />
-                </ListView.ItemContainerTransitions>
-                <!-- Remove default item padding to let our margin trick work for indent -->
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="Padding" Value="0"/>
-                        <Setter Property="MinHeight" Value="32"/>
-                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                    </Style>
-                </ListView.ItemContainerStyle>
-            </ListView>
-
-            <!-- Bottom toolbar -->
-            <StackPanel Grid.Row="2" Orientation="Horizontal" Padding="8" Spacing="4">
-                <Button x:Name="AddConnectionButton" Click="AddConnectionButton_Click"
-                        ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <FontIcon Glyph="&#xE710;" FontSize="14"/>
-                        <TextBlock Text="新建连接"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="EditConnectionButton" Click="EditConnectionButton_Click"
-                        ToolTipService.ToolTip="编辑所选连接">
-                    <FontIcon Glyph="&#xE70F;" FontSize="14"/>
-                </Button>
-                <Button x:Name="DeleteConnectionButton" Click="DeleteConnectionButton_Click"
-                        ToolTipService.ToolTip="删除所选连接">
-                    <FontIcon Glyph="&#xE74D;" FontSize="14"/>
-                </Button>
-                <Button x:Name="PaneSettingsButton" Click="PaneSettingsButton_Click"
-                        ToolTipService.ToolTip="设置 (侧边栏展开)">
-                    <FontIcon Glyph="&#xE713;" FontSize="14"/>
-                </Button>
-                <!-- Add Theme Toggle Button here -->
-                <Button x:Name="ThemeToggleButton" Click="ThemeToggleButton_Click"
-                        ToolTipService.ToolTip="切换应用主题">
-                    <FontIcon Glyph="&#xE706;" FontSize="14"/>
-                </Button>
-            </StackPanel>
-        </Grid>
-
-        <ui:GridSplitter Grid.Column="1" Width="8" Background="Transparent" />
-
-        <!-- ── Right: Terminal TabView & Sidebar ────────────────────────────── -->
-        <Grid Grid.Column="2">
-            <SplitView x:Name="TerminalSplitView" DisplayMode="Inline" PanePlacement="Right" OpenPaneLength="260" IsPaneOpen="False" PaneBackground="Transparent">
+        <!-- Terminal TabView & Sidebar (full width) -->
+        <Grid>
+            <SplitView x:Name="TerminalSplitView" DisplayMode="Overlay" PanePlacement="Right" OpenPaneLength="260" IsPaneOpen="False" PaneBackground="Transparent">
                 <SplitView.Content>
                     <Grid>
                         <TabView
@@ -195,6 +99,10 @@
                             TabCloseRequested="TerminalTabView_TabCloseRequested"
                             SizeChanged="TerminalTabView_SizeChanged"
                             VerticalAlignment="Stretch">
+                            <!-- Spacer in tab strip to avoid overlapping with title bar buttons -->
+                            <TabView.TabStripHeader>
+                                <Border Width="88" />
+                            </TabView.TabStripHeader>
                             <TabView.TabStripFooter>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" Margin="0,0,4,0">
                                 </StackPanel>
@@ -202,22 +110,68 @@
                         </TabView>
 
                         <!-- Empty state when no tabs -->
-                        <StackPanel
+                        <Grid
                             x:Name="EmptyStatePanel"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Spacing="16">
-                            <FontIcon Glyph="&#xE8C8;" FontSize="64"
-                                      Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
-                            <TextBlock Text="双击左侧连接以打开终端"
-                                       Style="{ThemeResource SubtitleTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="或点击「新建连接」添加一个 SSH 连接"
-                                       Style="{ThemeResource BodyTextBlockStyle}"
-                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                       HorizontalAlignment="Center"/>
-                        </StackPanel>
+                            MaxWidth="560"
+                            Padding="24">
+                            <StackPanel Spacing="18">
+                                <FontIcon Glyph="&#xE8C8;"
+                                          FontSize="56"
+                                          HorizontalAlignment="Center"
+                                          Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                <StackPanel Spacing="6">
+                                    <TextBlock Text="开始 SSH 会话"
+                                               Style="{ThemeResource TitleTextBlockStyle}"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="输入临时地址快速连接，或新建一个常用连接。"
+                                               Style="{ThemeResource BodyTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                               TextAlignment="Center"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="EmptyQuickConnectBox"
+                                             PlaceholderText="user@host:port"
+                                             FontFamily="Consolas"
+                                             KeyDown="EmptyQuickConnectBox_KeyDown"/>
+                                    <Button Grid.Column="1"
+                                            MinWidth="92"
+                                            Style="{ThemeResource AccentButtonStyle}"
+                                            Click="EmptyQuickConnectButton_Click">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE768;" FontSize="14"/>
+                                            <TextBlock Text="连接"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="8"
+                                            HorizontalAlignment="Center">
+                                    <Button Click="EmptyAddConnectionButton_Click"
+                                            MinWidth="116">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                                            <TextBlock Text="新建连接"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Click="EmptyOpenConnectionsButton_Click"
+                                            MinWidth="132">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8C8;" FontSize="14"/>
+                                            <TextBlock Text="展开连接列表"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
                 </SplitView.Content>
 

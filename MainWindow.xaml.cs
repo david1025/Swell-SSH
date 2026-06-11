@@ -1,16 +1,20 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
 using WinUIEx;
 using SwellSSH.Pages;
 using SwellSSH.Services;
 using SwellSSH.Models;
+using Windows.Graphics;
 
 namespace SwellSSH
 {
@@ -23,6 +27,7 @@ namespace SwellSSH
         private ElementTheme _currentTheme = ElementTheme.Default;
 
         private readonly ConnectionStorage _storage = new();
+        private InputNonClientPointerSource? _nonClientPointerSource;
 
         // BUG-04: 缓存 MinimizeOnClose 设置，避免 关闭事件里异步读取磁盘
         private bool _minimizeOnClose = true; // 默认安全化到托盘
@@ -43,6 +48,7 @@ namespace SwellSSH
             // Custom title bar
             ExtendsContentIntoTitleBar = true;
             SetTitleBar(AppTitleBar);
+            ConfigureTitleBarHitTesting();
 
             this.Title = "SwellSSH";
             this.AppWindow.Title = "SwellSSH";
@@ -54,17 +60,47 @@ namespace SwellSSH
             // Tray setup
             ConfigureTray();
 
-            // Pane open/close → show/hide theme button and logo
-            MainNav.PaneOpening += (_, _) => UpdateHeaderVisibility(isOpen: true);
-            MainNav.PaneClosing  += (_, _) => UpdateHeaderVisibility(isOpen: false);
-            UpdateHeaderVisibility(isOpen: false, animate: false);
+            // Navigate to MainPage immediately
+            ContentFrame.Navigate(typeof(MainPage));
+
+            // Pane open/close → sync connection list data
+            MainNav.PaneOpening += (_, _) => SyncPaneConnectionList();
 
             // Navigation
             MainNav.SelectionChanged += MainNav_SelectionChanged;
-            MainNav.SelectedItem = ConnectionsNavItem;
 
             // Background update check
             _ = CheckForUpdatesAsync();
+        }
+
+        private void ConfigureTitleBarHitTesting()
+        {
+            _nonClientPointerSource = InputNonClientPointerSource.GetForWindowId(AppWindow.Id);
+            ContentWrapper.SizeChanged += (_, _) => UpdateTitleBarPassthroughRegion();
+            AppTitleBar.SizeChanged += (_, _) => UpdateTitleBarPassthroughRegion();
+            DispatcherQueue.TryEnqueue(UpdateTitleBarPassthroughRegion);
+        }
+
+        private void UpdateTitleBarPassthroughRegion()
+        {
+            if (_nonClientPointerSource == null || ContentWrapper.XamlRoot == null || AppTitleBar.ActualWidth <= 0)
+                return;
+
+            var scale = ContentWrapper.XamlRoot.RasterizationScale;
+            var transform = AppTitleBar.TransformToVisual(ContentWrapper);
+            var origin = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+
+            var passthroughRect = new RectInt32(
+                (int)Math.Round(origin.X * scale),
+                (int)Math.Round(origin.Y * scale),
+                (int)Math.Round(AppTitleBar.ActualWidth * scale),
+                (int)Math.Round(AppTitleBar.ActualHeight * scale));
+
+            _nonClientPointerSource.SetRegionRects(
+                NonClientRegionKind.Passthrough,
+                passthroughRect.Width > 0 && passthroughRect.Height > 0
+                    ? new[] { passthroughRect }
+                    : Array.Empty<RectInt32>());
         }
 
         private async Task CheckForUpdatesAsync()
@@ -133,17 +169,20 @@ namespace SwellSSH
         {
             if (args.SelectedItemContainer is not NavigationViewItem item) return;
 
-            Type? pageType = item.Tag?.ToString() switch
-            {
-                "connections" => typeof(MainPage),
-                "settings"    => typeof(SettingsPage),
-                _             => null
-            };
+            string? tag = item.Tag?.ToString();
 
-            if (pageType != null)
+            if (tag == "theme_toggle")
             {
-                ContentFrame.Navigate(pageType);
-                ContentFrame.BackStack.Clear();
+                _ = ToggleThemeAsync(ThemeToggleNavItem);
+                // Deselect immediately since this is a toggle action, not a page nav
+                MainNav.SelectedItem = null;
+                return;
+            }
+
+            if (tag == "settings")
+            {
+                OpenSettingsTabFromNav();
+                return;
             }
         }
 
@@ -182,7 +221,32 @@ namespace SwellSSH
             _currentTheme = theme;
             if (this.Content is FrameworkElement root)
                 root.RequestedTheme = theme;
+            UpdateTitleBarButtonColors();
             ThemeChanged?.Invoke(theme);
+        }
+
+        private void UpdateTitleBarButtonColors()
+        {
+            var titleBar = AppWindow.TitleBar;
+            var isDark = GetActualTheme() == ElementTheme.Dark;
+            var foreground = isDark ? Colors.White : Colors.Black;
+            var hoverBackground = isDark
+                ? Windows.UI.Color.FromArgb(40, 255, 255, 255)
+                : Windows.UI.Color.FromArgb(24, 0, 0, 0);
+            var pressedBackground = isDark
+                ? Windows.UI.Color.FromArgb(64, 255, 255, 255)
+                : Windows.UI.Color.FromArgb(40, 0, 0, 0);
+
+            titleBar.ButtonForegroundColor = foreground;
+            titleBar.ButtonHoverForegroundColor = foreground;
+            titleBar.ButtonPressedForegroundColor = foreground;
+            titleBar.ButtonInactiveForegroundColor = isDark
+                ? Windows.UI.Color.FromArgb(160, 255, 255, 255)
+                : Windows.UI.Color.FromArgb(160, 0, 0, 0);
+            titleBar.ButtonBackgroundColor = Colors.Transparent;
+            titleBar.ButtonInactiveBackgroundColor = Colors.Transparent;
+            titleBar.ButtonHoverBackgroundColor = hoverBackground;
+            titleBar.ButtonPressedBackgroundColor = pressedBackground;
         }
 
         private ElementTheme GetActualTheme()
@@ -203,51 +267,66 @@ namespace SwellSSH
 
 
 
-        // ── Header visibility with fade animation ────────────────────────────
+        // ── Pane connection list sync ────────────────────────────────────────
 
-        private void UpdateHeaderVisibility(bool isOpen, bool animate = true)
+        private void SyncPaneConnectionList()
         {
-            if (LogoStackPanel != null)
+            if (ContentFrame.Content is MainPage mainPage)
             {
-                if (animate)
-                {
-                    FadeVisual(LogoStackPanel, isOpen ? 0f : 1f, 250);
-                }
-                else
-                {
-                    LogoStackPanel.Visibility = isOpen ? Visibility.Collapsed : Visibility.Visible;
-                    var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(LogoStackPanel);
-                    visual.Opacity = isOpen ? 0f : 1f;
-                }
+                PaneConnectionList.ItemsSource = mainPage.FlatSidebarItems;
+                PaneConnectionList.ItemTemplateSelector = mainPage.GetSidebarTemplateSelector();
             }
         }
 
-        private static void FadeVisual(UIElement? element, float targetOpacity, double durationMs)
+        // ── Pane event handlers (delegated to MainPage) ──────────────────────
+
+        private void PaneQuickConnectBox_KeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (element == null) return;
-            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(element);
-            
-            if (durationMs <= 0)
+            if (e.Key == Windows.System.VirtualKey.Enter)
             {
-                visual.Opacity = targetOpacity;
-                element.Visibility = targetOpacity > 0f ? Visibility.Visible : Visibility.Collapsed;
-                return;
+                e.Handled = true;
+                if (ContentFrame.Content is MainPage mainPage)
+                    mainPage.DoQuickConnectFromPane(PaneQuickConnectBox);
             }
+        }
 
-            if (targetOpacity > 0f) element.Visibility = Visibility.Visible;
+        private void PaneQuickConnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (ContentFrame.Content is MainPage mainPage)
+                mainPage.DoQuickConnectFromPane(PaneQuickConnectBox);
+        }
 
-            var compositor = visual.Compositor;
-            var anim = compositor.CreateScalarKeyFrameAnimation();
-            anim.InsertKeyFrame(1f, targetOpacity);
-            anim.Duration = TimeSpan.FromMilliseconds(durationMs);
-
-            var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
-            visual.StartAnimation("Opacity", anim);
-            batch.Completed += (_, _) =>
+        private void PaneConnectionList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if (PaneConnectionList.SelectedItem is ConnectionItemViewModel vm)
             {
-                if (targetOpacity == 0f) element.Visibility = Visibility.Collapsed;
-            };
-            batch.End();
+                MainNav.IsPaneOpen = false;
+                if (ContentFrame.Content is MainPage mainPage)
+                    mainPage.ConnectToProfile(vm.Profile);
+            }
+        }
+
+        private async void PaneAddConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            await AddConnectionFromNavAsync();
+        }
+
+        private async void PaneEditConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PaneConnectionList.SelectedItem is ConnectionItemViewModel vm)
+            {
+                if (ContentFrame.Content is MainPage mainPage)
+                    await mainPage.EditProfileFromPane(vm);
+            }
+        }
+
+        private async void PaneDeleteConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PaneConnectionList.SelectedItem is ConnectionItemViewModel vm)
+            {
+                if (ContentFrame.Content is MainPage mainPage)
+                    await mainPage.DeleteProfileFromPane(vm);
+            }
         }
 
         private bool _isThemeTransitioning = false;
@@ -260,7 +339,47 @@ namespace SwellSSH
             }
         }
 
-        public async Task ToggleThemeAsync(UIElement sourceElement = null)
+        public void OpenConnectionsPane()
+        {
+            SyncPaneConnectionList();
+            MainNav.IsPaneOpen = true;
+        }
+
+        public async Task AddConnectionFromNavAsync()
+        {
+            if (ContentFrame.Content is MainPage mainPage)
+            {
+                await mainPage.AddConnectionFromPane();
+                SyncPaneConnectionList();
+                MainNav.IsPaneOpen = true;
+            }
+        }
+
+        private async void ThemeToggleNavItem_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            MainNav.SelectedItem = null;
+            await ToggleThemeAsync(ThemeToggleNavItem);
+        }
+
+        private void SettingsNavItem_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            OpenSettingsTabFromNav();
+        }
+
+        private void OpenSettingsTabFromNav()
+        {
+            if (ContentFrame.Content is MainPage mainPage)
+            {
+                mainPage.OpenSettingsTab();
+            }
+
+            MainNav.SelectedItem = null;
+            MainNav.IsPaneOpen = false;
+        }
+
+        public async Task ToggleThemeAsync(UIElement? sourceElement = null)
         {
             if (_isThemeTransitioning) return;
             _isThemeTransitioning = true;
@@ -365,14 +484,14 @@ namespace SwellSSH
 
         // ── Nav icon hover animations (ported from AnywhereWinUI) ────────────
 
-        // Connections: Scale pulse
-        private void ConnectionsNavItem_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        // Theme toggle: Scale pulse
+        private void ThemeToggleNavItem_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            AnimateNavIconScale(ConnectionsNavIcon, 1.22f, 300);
+            AnimateNavIconScale(ThemeToggleIcon, 1.22f, 300);
         }
-        private void ConnectionsNavItem_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void ThemeToggleNavItem_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            AnimateNavIconScale(ConnectionsNavIcon, 1f, 250);
+            AnimateNavIconScale(ThemeToggleIcon, 1f, 250);
         }
 
         // Settings: Gear 180° spin

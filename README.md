@@ -1,3 +1,8 @@
+## 🙏 致谢
+
+- 特别感谢 [ForZTN](https://sponsorship.forztn.com/github/yaog6700-bit/Swell-SSHb) 为本项目提供服务器资源支持。
+
+
 # SwellSSH
 
 **SwellSSH** 是一款为 Windows 11 打造的现代 SSH 客户端，使用 WinUI 3 原生框架与 Win2D GPU 加速渲染构建，提供流畅、美观的终端体验。

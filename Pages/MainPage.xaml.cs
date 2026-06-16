@@ -401,11 +401,69 @@ namespace SwellSSH.Pages
             
             if (TerminalTabView != null)
                 TerminalTabView.Visibility = isEmpty ? Visibility.Collapsed : Visibility.Visible;
+
+            UpdateTitleBarInteractiveRegions();
         }
 
         // ── Connection list actions ───────────────────────────────────────────
 
-        private async void AddConnectionButton_Click(object sender, RoutedEventArgs e)
+        // ── Public API for MainWindow pane delegation ────────────────────────
+
+        public SidebarTemplateSelector GetSidebarTemplateSelector()
+        {
+            return Resources["SidebarTemplateSelector"] as SidebarTemplateSelector
+                ?? new SidebarTemplateSelector();
+        }
+
+        public void OpenSettingsPane()
+        {
+            if (SettingsPaneFrame.Content == null)
+            {
+                SettingsPaneFrame.Navigate(typeof(SettingsPage));
+            }
+            SettingsPaneHost.Visibility = Visibility.Visible;
+            TerminalSplitView.Visibility = Visibility.Collapsed;
+        }
+
+        public void OpenSettingsTab()
+        {
+            foreach (TabViewItem existingTab in TerminalTabView.TabItems)
+            {
+                if (existingTab.Tag is string tag && tag == "settings")
+                {
+                    TerminalTabView.SelectedItem = existingTab;
+                    UpdateEmptyState();
+                    return;
+                }
+            }
+
+            var frame = new Frame();
+            frame.Navigate(typeof(SettingsPage));
+
+            var tab = new TabViewItem
+            {
+                Header = "应用设置",
+                IconSource = new FontIconSource { Glyph = "\uE713" },
+                Tag = "settings",
+                Content = frame
+            };
+
+            TerminalTabView.TabItems.Add(tab);
+            TerminalTabView.SelectedItem = tab;
+            UpdateEmptyState();
+        }
+
+        public void ConnectToProfile(ConnectionProfile profile)
+        {
+            OpenTerminalTab(profile);
+        }
+
+        public void DoQuickConnectFromPane(TextBox textBox)
+        {
+            _ = DoQuickConnectAsync(textBox);
+        }
+
+        public async Task AddConnectionFromPane()
         {
             var profile = new ConnectionProfile();
             bool saved = await ShowConnectionDialogAsync(profile, isNew: true);
@@ -417,16 +475,39 @@ namespace SwellSSH.Pages
             await LoadConnectionsAsync();
         }
 
-        private async void EditConnectionButton_Click(object sender, RoutedEventArgs e)
+        public async Task EditProfileFromPane(ConnectionItemViewModel vm)
         {
-            if (ConnectionListView.SelectedItem is ConnectionItemViewModel vm)
-                await EditProfileAsync(vm);
+            await EditProfileAsync(vm);
         }
 
-        private async void DeleteConnectionButton_Click(object sender, RoutedEventArgs e)
+        public async Task DeleteProfileFromPane(ConnectionItemViewModel vm)
         {
-            if (ConnectionListView.SelectedItem is ConnectionItemViewModel vm)
-                await DeleteProfileAsync(vm);
+            await DeleteProfileAsync(vm);
+        }
+
+        private void EmptyQuickConnectBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                _ = DoQuickConnectAsync(EmptyQuickConnectBox);
+            }
+        }
+
+        private void EmptyQuickConnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            _ = DoQuickConnectAsync(EmptyQuickConnectBox);
+        }
+
+        private async void EmptyAddConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            await AddConnectionFromPane();
+            MainWindow.Instance?.OpenConnectionsPane();
+        }
+
+        private void EmptyOpenConnectionsButton_Click(object sender, RoutedEventArgs e)
+        {
+            MainWindow.Instance?.OpenConnectionsPane();
         }
 
         private async void ToggleFavoriteMenu_Click(object sender, RoutedEventArgs e)
@@ -445,36 +526,10 @@ namespace SwellSSH.Pages
             }
         }
 
-        private void PaneSettingsButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (SettingsPaneFrame.Content == null)
-            {
-                SettingsPaneFrame.Navigate(typeof(SettingsPage));
-            }
-            SettingsPaneHost.Visibility = Visibility.Visible;
-            TerminalSplitView.Visibility = Visibility.Collapsed;
-        }
-
-        private void CloseSettingsPane_Click(object sender, RoutedEventArgs e)
+        public void CloseSettingsPane_Click(object sender, RoutedEventArgs e)
         {
             SettingsPaneHost.Visibility = Visibility.Collapsed;
             TerminalSplitView.Visibility = Visibility.Visible;
-        }
-
-        private void LeftHeaderContainer_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            if (RightSettingsHeader != null)
-            {
-                RightSettingsHeader.Height = e.NewSize.Height;
-            }
-        }
-
-        private async void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (MainWindow.Instance != null)
-            {
-                await MainWindow.Instance.ToggleThemeAsync(sender as UIElement);
-            }
         }
 
         // ── Context Menu handlers ─────────────────────────────────────────────
@@ -493,28 +548,16 @@ namespace SwellSSH.Pages
 
         // ── Quick Connect ────────────────────────────────────────────────────────────────────
 
-        private void QuickConnectBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        private async Task DoQuickConnectAsync(TextBox textBox)
         {
-            if (e.Key == Windows.System.VirtualKey.Enter)
-            {
-                e.Handled = true;
-                _ = DoQuickConnectAsync();
-            }
-        }
-
-        private void QuickConnectButton_Click(object sender, RoutedEventArgs e) => _ = DoQuickConnectAsync();
-
-        private async Task DoQuickConnectAsync()
-        {
-            var input = QuickConnectBox.Text.Trim();
+            var input = textBox.Text.Trim();
             if (string.IsNullOrEmpty(input)) return;
 
             if (!TryParseQuickConnect(input, out var profile))
             {
-                // Briefly highlight the box to signal bad input
-                QuickConnectBox.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                textBox.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
                 _ = Task.Delay(1500).ContinueWith(_ =>
-                    DispatcherQueue.TryEnqueue(() => QuickConnectBox.ClearValue(TextBox.BorderBrushProperty)));
+                    DispatcherQueue.TryEnqueue(() => textBox.ClearValue(TextBox.BorderBrushProperty)));
                 return;
             }
 
@@ -568,7 +611,7 @@ namespace SwellSSH.Pages
             if (!string.IsNullOrEmpty(pwd))
                 profile.EncryptedPassword = ConnectionStorage.EncryptSecret(pwd);
 
-            QuickConnectBox.Text = "";
+            textBox.Text = "";
             OpenTerminalTab(profile);
         }
 
@@ -879,12 +922,7 @@ namespace SwellSSH.Pages
 
         // ── Connection list actions ───────────────────────────────────────────
 
-        private void ConnectionListView_DoubleTapped(object sender,
-            Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
-        {
-            if (ConnectionListView.SelectedItem is ConnectionItemViewModel vm)
-                OpenTerminalTab(vm.Profile);
-        }
+        // ConnectionListView_DoubleTapped is now handled in MainWindow pane
 
         // ── Terminal Sidebar ────────────────────────────────────────
 
@@ -897,13 +935,178 @@ namespace SwellSSH.Pages
 
 
 
+        // ── Connection Picker Flyout (created entirely in code to avoid XAML resource issues) ──
+
+        private ContentDialog? _connectionPickerDialog;
+        private bool _isConnectionPickerDialogOpen;
+        private TextBox? _flyoutSearchBox;
+        private ListView? _flyoutList;
+
         private void TerminalTabView_AddTabButtonClick(TabView sender, object args)
         {
-            if (TerminalTabView.SelectedItem is TabViewItem tab && tab.Tag is TerminalSession session)
+            ShowConnectionPicker();
+        }
+
+        private async void ShowConnectionPicker()
+        {
+            if (_connectionPickerDialog == null)
             {
-                // Duplicate the current connection
-                OpenTerminalTab(session.Profile);
+                var root = new Grid { Width = 320 };
+                root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+                // ── Header ──
+                var header = new Grid { Padding = new Thickness(16, 14, 16, 10) };
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                var headerIcon = new FontIcon { Glyph = "\uE703", FontSize = 14 };
+                headerIcon.SetValue(Grid.ColumnProperty, 0);
+                headerIcon.Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
+                headerIcon.VerticalAlignment = VerticalAlignment.Center;
+                headerIcon.Margin = new Thickness(0, 0, 10, 0);
+
+                var headerText = new TextBlock { Text = "选择连接" };
+                headerText.SetValue(Grid.ColumnProperty, 1);
+                headerText.Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"];
+                headerText.VerticalAlignment = VerticalAlignment.Center;
+
+                header.Children.Add(headerIcon);
+                header.Children.Add(headerText);
+                Grid.SetRow(header, 0);
+
+                // ── Search box ──
+                _flyoutSearchBox = new TextBox { PlaceholderText = "搜索连接..." };
+                _flyoutSearchBox.TextChanged += FlyoutSearch_TextChanged;
+                var searchContainer = new Grid { Padding = new Thickness(12, 0, 12, 8) };
+                searchContainer.Children.Add(_flyoutSearchBox);
+                Grid.SetRow(searchContainer, 1);
+
+                // ── Connection list ──
+                _flyoutList = new ListView
+                {
+                    IsItemClickEnabled = true,
+                    SelectionMode = ListViewSelectionMode.Single,
+                    MaxHeight = 320
+                };
+
+                var itemStyle = new Style(typeof(ListViewItem));
+                itemStyle.Setters.Add(new Setter(ListViewItem.PaddingProperty, new Thickness(10, 8, 10, 8)));
+                itemStyle.Setters.Add(new Setter(ListViewItem.MarginProperty, new Thickness(0, 1, 0, 1)));
+                itemStyle.Setters.Add(new Setter(ListViewItem.CornerRadiusProperty, new CornerRadius(4)));
+                itemStyle.Setters.Add(new Setter(ListViewItem.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+                itemStyle.Setters.Add(new Setter(ListViewItem.MinHeightProperty, 0));
+                _flyoutList.ItemContainerStyle = itemStyle;
+
+                _flyoutList.ItemClick += (s, e) =>
+                {
+                    if (e.ClickedItem is ConnectionItemViewModel vm)
+                    {
+                        _connectionPickerDialog?.Hide();
+                        OpenTerminalTab(vm.Profile);
+                    }
+                };
+
+                var listContainer = new Grid { Padding = new Thickness(8, 0, 8, 8) };
+                listContainer.Children.Add(_flyoutList);
+                Grid.SetRow(listContainer, 2);
+
+                root.Children.Add(header);
+                root.Children.Add(searchContainer);
+                root.Children.Add(listContainer);
+
+                _connectionPickerDialog = new ContentDialog
+                {
+                    Title = "选择连接",
+                    Content = root,
+                    CloseButtonText = "取消",
+                    DefaultButton = ContentDialogButton.Close
+                };
             }
+
+            // Refresh items and show
+            _flyoutSearchBox!.Text = "";
+            _flyoutList!.ItemsSource = FlatSidebarItems.OfType<ConnectionItemViewModel>().ToList();
+
+            // Build item template if not set yet
+            if (_flyoutList.ItemTemplate == null)
+                _flyoutList.ItemTemplate = BuildConnectionItemTemplate();
+
+            if (_isConnectionPickerDialogOpen)
+                return;
+
+            _connectionPickerDialog.XamlRoot = XamlRoot;
+            _connectionPickerDialog.RequestedTheme = ActualTheme;
+            _isConnectionPickerDialogOpen = true;
+
+            // Auto-focus search box
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(150);
+                DispatcherQueue.TryEnqueue(() => _flyoutSearchBox.Focus(FocusState.Programmatic));
+            });
+
+            try
+            {
+                await _connectionPickerDialog.ShowAsync();
+            }
+            finally
+            {
+                _isConnectionPickerDialogOpen = false;
+            }
+        }
+
+        private void FlyoutSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            var query = _flyoutSearchBox!.Text.Trim().ToLower();
+            var allItems = FlatSidebarItems.OfType<ConnectionItemViewModel>();
+            _flyoutList!.ItemsSource = string.IsNullOrEmpty(query)
+                ? allItems.ToList()
+                : allItems.Where(item =>
+                    item.Name.ToLower().Contains(query) ||
+                    item.Profile.Host.ToLower().Contains(query) ||
+                    item.Profile.Username.ToLower().Contains(query) ||
+                    item.Group.ToLower().Contains(query)).ToList();
+        }
+
+        private DataTemplate BuildConnectionItemTemplate()
+        {
+            // Note: x:DataType cannot be set in code, but the bindings still work
+            // since ConnectionItemViewModel exposes the required properties
+            string xaml = @"
+<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+              xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'>
+    <Grid ColumnSpacing='12' Padding='2,2,2,2'>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width='32'/>
+            <ColumnDefinition Width='*'/>
+            <ColumnDefinition Width='Auto'/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column='0' Width='32' Height='32' CornerRadius='4'
+                Opacity='0.15' HorizontalAlignment='Center' VerticalAlignment='Center'
+                Background='{ThemeResource AccentFillColorDefaultBrush}'>
+            <FontIcon Glyph='&#xE8C8;' FontSize='14' Opacity='1'
+                      Foreground='{ThemeResource AccentTextFillColorPrimaryBrush}'
+                      HorizontalAlignment='Center' VerticalAlignment='Center'/>
+        </Border>
+
+        <StackPanel Grid.Column='1' Spacing='2' VerticalAlignment='Center'>
+            <TextBlock Text='{Binding Name}' TextTrimming='CharacterEllipsis' MaxLines='1'/>
+            <TextBlock Text='{Binding DisplayHostPort}' FontSize='11' FontFamily='Consolas'
+                       Foreground='{ThemeResource TextFillColorSecondaryBrush}'
+                       TextTrimming='CharacterEllipsis' MaxLines='1'/>
+        </StackPanel>
+
+        <Border Grid.Column='2' CornerRadius='3' Padding='6,2' VerticalAlignment='Center'
+                Background='{ThemeResource SubtleFillColorSecondaryBrush}'>
+            <TextBlock Text='{Binding Group}' FontSize='10'
+                       Foreground='{ThemeResource TextFillColorSecondaryBrush}'/>
+        </Border>
+    </Grid>
+</DataTemplate>";
+            return (DataTemplate)Microsoft.UI.Xaml.Markup.XamlReader.Load(xaml);
         }
 
 
@@ -923,6 +1126,64 @@ namespace SwellSSH.Pages
                 {
                     SidebarPaneGrid.Margin = new Thickness(0, tabContainer.ActualHeight, 0, 0);
                 }
+            }
+
+            UpdateTitleBarInteractiveRegions();
+        }
+
+        private void UpdateTitleBarInteractiveRegions()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                var mainWindow = MainWindow.Instance;
+                if (mainWindow == null || TerminalTabView == null || TerminalTabView.Visibility != Visibility.Visible)
+                {
+                    mainWindow?.SetTitleBarPassthroughRects(Array.Empty<Windows.Foundation.Rect>());
+                    return;
+                }
+
+                var root = mainWindow.TitleBarCoordinateRoot;
+                var rects = new List<Windows.Foundation.Rect>();
+
+                foreach (var tabItem in FindVisualChildren<TabViewItem>(TerminalTabView))
+                    AddTopRegionRect(tabItem, root, rects);
+
+                foreach (var button in FindVisualChildren<Button>(TerminalTabView))
+                    AddTopRegionRect(button, root, rects);
+
+                mainWindow.SetTitleBarPassthroughRects(rects);
+            });
+        }
+
+        private static void AddTopRegionRect(FrameworkElement element, UIElement root, List<Windows.Foundation.Rect> rects)
+        {
+            if (element.ActualWidth <= 0 || element.ActualHeight <= 0 || element.Visibility != Visibility.Visible)
+                return;
+
+            try
+            {
+                var point = element.TransformToVisual(root).TransformPoint(new Windows.Foundation.Point(0, 0));
+                var rect = new Windows.Foundation.Rect(point.X, point.Y, element.ActualWidth, element.ActualHeight);
+
+                if (rect.Y < 48 && rect.Y + rect.Height > 0)
+                    rects.Add(rect);
+            }
+            catch
+            {
+                // Layout may still be settling; the next size/update pass will refresh this.
+            }
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T typedChild)
+                    yield return typedChild;
+
+                foreach (var nestedChild in FindVisualChildren<T>(child))
+                    yield return nestedChild;
             }
         }
 
@@ -1188,7 +1449,7 @@ namespace SwellSSH.Pages
             var userBox = new TextBox { Header = "用户名", Text = profile.Username, PlaceholderText = "root" };
             userBox.TextChanged += (s, e) => SetFieldError(userBox, false);
 
-            var authCombo = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey", "Agent" }, SelectedItem = profile.AuthType };
+            var authCombo = new ComboBox { Header = "认证方式", ItemsSource = new[] { "Password", "PrivateKey", "Agent" }, SelectedItem = profile.AuthType, Width = 170, HorizontalAlignment = HorizontalAlignment.Left };
 
             string existingPwd = "";
             if (!string.IsNullOrEmpty(profile.EncryptedPassword))
@@ -1247,6 +1508,8 @@ namespace SwellSSH.Pages
                 Value = profile.KeepAliveIntervalSeconds,
                 Minimum = 0,
                 Maximum = 300,
+                MaxWidth = 300,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact
             };
 
@@ -1262,6 +1525,8 @@ namespace SwellSSH.Pages
                 Value = profile.MonitorIntervalSeconds,
                 Minimum = 3,
                 Maximum = 60,
+                MaxWidth = 300,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Compact,
                 Visibility = profile.EnableMonitoring ? Visibility.Visible : Visibility.Collapsed
             };
@@ -1318,11 +1583,39 @@ namespace SwellSSH.Pages
                 targetPortBox.Visibility = isDynamic ? Visibility.Collapsed : Visibility.Visible;
             };
 
-            var subContent = new StackPanel { Spacing = 8, Width = 250 };
-            subContent.Children.Add(typeCombo);
-            subContent.Children.Add(bindPortBox);
-            subContent.Children.Add(targetHostBox);
-            subContent.Children.Add(targetPortBox);
+            Grid CreateTwoColumnRow(FrameworkElement left, FrameworkElement right, double leftWeight = 1, double rightWeight = 1)
+                => CreateTwoColumnRowWithWidths(
+                    left,
+                    right,
+                    new GridLength(leftWeight, GridUnitType.Star),
+                    new GridLength(rightWeight, GridUnitType.Star));
+
+            Grid CreateTwoColumnRowWithWidths(FrameworkElement left, FrameworkElement right, GridLength leftWidth, GridLength rightWidth)
+            {
+                var row = new Grid { ColumnSpacing = 12, HorizontalAlignment = HorizontalAlignment.Stretch };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = leftWidth });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = rightWidth });
+
+                left.HorizontalAlignment = HorizontalAlignment.Stretch;
+                right.HorizontalAlignment = HorizontalAlignment.Stretch;
+
+                Grid.SetColumn(left, 0);
+                Grid.SetColumn(right, 1);
+                row.Children.Add(left);
+                row.Children.Add(right);
+                return row;
+            }
+
+            Grid CreateCompactTwoColumnRow(FrameworkElement left, FrameworkElement right, double leftWidth, double rightWidth)
+            {
+                var row = CreateTwoColumnRowWithWidths(left, right, new GridLength(leftWidth), new GridLength(rightWidth));
+                row.HorizontalAlignment = HorizontalAlignment.Left;
+                return row;
+            }
+
+            var subContent = new StackPanel { Spacing = 8, Width = 380 };
+            subContent.Children.Add(CreateTwoColumnRow(typeCombo, bindPortBox, 0.9, 1.1));
+            subContent.Children.Add(CreateTwoColumnRow(targetHostBox, targetPortBox, 1.4, 1));
 
             var confirmAddBtn = new Button { Content = "确定添加", HorizontalAlignment = HorizontalAlignment.Right, Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
             subContent.Children.Add(confirmAddBtn);
@@ -1356,18 +1649,15 @@ namespace SwellSSH.Pages
                 Visibility = Visibility.Collapsed
             };
 
-            var content = new StackPanel { Spacing = 12, Width = 360 };
-            content.Children.Add(nameBox);
-            content.Children.Add(groupCombo);
-            content.Children.Add(hostBox);
-            content.Children.Add(portBox);
-            content.Children.Add(userBox);
+            var content = new StackPanel { Spacing = 12, Width = 460 };
+            content.Children.Add(CreateCompactTwoColumnRow(nameBox, groupCombo, 270, 170));
+            content.Children.Add(CreateCompactTwoColumnRow(hostBox, portBox, 330, 80));
+            content.Children.Add(CreateCompactTwoColumnRow(userBox, pwdBox, 210, 220));
             content.Children.Add(authCombo);
-            content.Children.Add(pwdBox);
             content.Children.Add(keyPathBox);
             content.Children.Add(agentInfoPanel);
-            content.Children.Add(keepAliveBox);
             content.Children.Add(monitorSwitch);
+            content.Children.Add(keepAliveBox);
             content.Children.Add(monitorInterval);
             content.Children.Add(pfExpander);
             content.Children.Add(errorLabel);
@@ -1377,7 +1667,12 @@ namespace SwellSSH.Pages
                 XamlRoot = this.XamlRoot,
                 RequestedTheme = this.ActualTheme,
                 Title = isNew ? "新建连接" : "编辑连接",
-                Content = new ScrollViewer { Content = content, MaxHeight = 540 },
+                Content = new ScrollViewer
+                {
+                    Content = content,
+                    MaxHeight = 540,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+                },
                 PrimaryButtonText = "保存",
                 CloseButtonText = "取消",
                 DefaultButton = ContentDialogButton.Primary

@@ -23,7 +23,7 @@
             <NavigationView x:Name="MainNav"
                             PaneDisplayMode="LeftMinimal"
                             IsPaneOpen="False"
-                            OpenPaneLength="240"
+                            OpenPaneLength="300"
                             IsBackButtonVisible="Collapsed"
                             IsSettingsVisible="False"
                             AlwaysShowHeader="False"
@@ -31,7 +31,7 @@
                             Background="Transparent">
 
                 <NavigationView.PaneHeader>
-                    <Grid Height="32" />
+                    <Grid Height="4" />
                 </NavigationView.PaneHeader>
 
                 <NavigationView.Resources>
@@ -40,38 +40,113 @@
                     <SolidColorBrush x:Key="NavigationViewContentGridBackground" Color="Transparent" />
                 </NavigationView.Resources>
 
+                <!-- Pane Custom Content: Connection list -->
+                <NavigationView.PaneCustomContent>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*" MinHeight="100"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header -->
+                        <Grid Grid.Row="0" Padding="16,8,16,4">
+                            <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                        </Grid>
+
+                        <!-- Quick connect bar -->
+                        <Grid Grid.Row="1" Padding="8,0,8,4" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="PaneQuickConnectBox"
+                                     PlaceholderText="快速连接 user@host:port"
+                                     FontSize="12"
+                                     KeyDown="PaneQuickConnectBox_KeyDown"/>
+                            <Button Grid.Column="1"
+                                    Width="32" Height="32" Padding="0"
+                                    ToolTipService.ToolTip="连接"
+                                    Click="PaneQuickConnectButton_Click">
+                                <FontIcon Glyph="&#xE768;" FontSize="13"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Connection list -->
+                        <ListView x:Name="PaneConnectionList"
+                                  Grid.Row="2"
+                                  Margin="0,4,0,0"
+                                  SelectionMode="Single"
+                                  DoubleTapped="PaneConnectionList_DoubleTapped">
+                            <ListView.ItemContainerTransitions>
+                                <TransitionCollection />
+                            </ListView.ItemContainerTransitions>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="MinHeight" Value="32"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                        </ListView>
+
+                        <!-- Bottom toolbar -->
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Padding="8,4,8,8" Spacing="4">
+                            <Button x:Name="PaneAddConnectionButton" Click="PaneAddConnectionButton_Click"
+                                    ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                                    <TextBlock Text="新建连接"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PaneEditConnectionButton" Click="PaneEditConnectionButton_Click"
+                                    ToolTipService.ToolTip="编辑所选连接">
+                                <FontIcon Glyph="&#xE70F;" FontSize="14"/>
+                            </Button>
+                            <Button x:Name="PaneDeleteConnectionButton" Click="PaneDeleteConnectionButton_Click"
+                                    ToolTipService.ToolTip="删除所选连接">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </NavigationView.PaneCustomContent>
+
+                <!-- Pane Footer: Theme toggle + Settings -->
+                <NavigationView.PaneFooter>
+                    <StackPanel Spacing="2" Padding="4,0,4,4">
+                        <NavigationViewItem x:Name="ThemeToggleNavItem"
+                                            Tapped="ThemeToggleNavItem_Tapped"
+                                            Content="浅色/深色模式"
+                                            Tag="theme_toggle"
+                                            ToolTipService.ToolTip="切换应用主题"
+                                            PointerEntered="ThemeToggleNavItem_PointerEntered"
+                                            PointerExited="ThemeToggleNavItem_PointerExited">
+                            <NavigationViewItem.Icon>
+                                <FontIcon x:Name="ThemeToggleIcon" Glyph="&#xE706;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem x:Name="SettingsNavItem"
+                                            Tapped="SettingsNavItem_Tapped"
+                                            Content="设置"
+                                            Tag="settings"
+                                            ToolTipService.ToolTip="应用设置"
+                                            PointerEntered="SettingsNavItem_PointerEntered"
+                                            PointerExited="SettingsNavItem_PointerExited">
+                            <NavigationViewItem.Icon>
+                                <FontIcon x:Name="SettingsNavIcon" Glyph="&#xE713;" />
+                            </NavigationViewItem.Icon>
+                            <NavigationViewItem.InfoBadge>
+                                <InfoBadge x:Name="UpdateBadge" Style="{ThemeResource AttentionIconInfoBadgeStyle}" Visibility="Collapsed" />
+                            </NavigationViewItem.InfoBadge>
+                        </NavigationViewItem>
+                    </StackPanel>
+                </NavigationView.PaneFooter>
+
                 <NavigationView.MenuItems>
-                    <!-- SSH Connections -->
-                    <NavigationViewItem x:Name="ConnectionsNavItem"
-                                        Content="SSH 连接"
-                                        Tag="connections"
-                                        ToolTipService.ToolTip="SSH 连接管理"
-                                        PointerEntered="ConnectionsNavItem_PointerEntered"
-                                        PointerExited="ConnectionsNavItem_PointerExited">
-                        <NavigationViewItem.Icon>
-                            <FontIcon x:Name="ConnectionsNavIcon" Glyph="&#xE8C8;" />
-                        </NavigationViewItem.Icon>
-                    </NavigationViewItem>
-
-                    <NavigationViewItemSeparator/>
-
-                    <!-- Settings -->
-                    <NavigationViewItem x:Name="SettingsNavItem"
-                                        Content="设置"
-                                        Tag="settings"
-                                        ToolTipService.ToolTip="应用设置"
-                                        PointerEntered="SettingsNavItem_PointerEntered"
-                                        PointerExited="SettingsNavItem_PointerExited">
-                        <NavigationViewItem.Icon>
-                            <FontIcon x:Name="SettingsNavIcon" Glyph="&#xE713;" />
-                        </NavigationViewItem.Icon>
-                        <NavigationViewItem.InfoBadge>
-                            <InfoBadge x:Name="UpdateBadge" Style="{ThemeResource AttentionIconInfoBadgeStyle}" Visibility="Collapsed" />
-                        </NavigationViewItem.InfoBadge>
-                    </NavigationViewItem>
                 </NavigationView.MenuItems>
 
-                <Frame x:Name="ContentFrame" Margin="0,48,0,0" />
+                <Frame x:Name="ContentFrame" />
             </NavigationView>
 
             <!-- Global Sidebar Toggle Button: aligned to the left after hamburger menu -->
@@ -86,26 +161,11 @@
                 <FontIcon Glyph="&#xE90D;" FontSize="14"/>
             </Button>
 
-            <!-- Logo area (shown when pane is closed) -->
-            <StackPanel x:Name="LogoStackPanel"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Top"
-                        Margin="92,0,0,0"
-                        Height="48" Spacing="8"
-                        HorizontalAlignment="Left"
-                        IsHitTestVisible="False">
-                <Image x:Name="TitleBarLogo"
-                       Source="ms-appx:///Assets/tray-icon.ico"
-                       Width="18" Height="18"
-                       VerticalAlignment="Center" Stretch="Uniform"/>
-                <TextBlock Text="Swell SSH"
-                           FontSize="12" FontWeight="SemiBold"
-                           VerticalAlignment="Center"/>
-            </StackPanel>
-
             <!-- Drag region for custom title bar -->
             <Grid x:Name="AppTitleBar" Height="48" Background="Transparent"
-                  VerticalAlignment="Top" Margin="240,0,140,0"/>
+                  IsHitTestVisible="False"
+                  VerticalAlignment="Top"
+                  Margin="0,0,140,0"/>
 
         </Grid>
         <!-- 新手引导遮罩层：懒加载，首次需要时才由代码注入 OnboardingControl 实例 -->

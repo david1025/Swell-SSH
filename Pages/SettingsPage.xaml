@@ -7,8 +7,12 @@
     NavigationCacheMode="Required">
 
     <Grid>
-        <ScrollViewer Padding="72,16,24,24">
-            <StackPanel MaxWidth="800" HorizontalAlignment="Left" Spacing="24">
+        <ScrollViewer Padding="24,16,24,24"
+                      HorizontalScrollBarVisibility="Disabled">
+            <Grid>
+                <StackPanel MaxWidth="800"
+                            HorizontalAlignment="Center"
+                            Spacing="24">
 
             <!-- Search Box -->
             <AutoSuggestBox x:Name="SettingsSearchBox"
@@ -173,7 +177,8 @@
                 </Border>
             </StackPanel>
 
-            </StackPanel>
+                </StackPanel>
+            </Grid>
         </ScrollViewer>
     </Grid>
 </Page>

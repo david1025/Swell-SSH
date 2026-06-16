@@ -52,5 +52,8 @@ namespace SwellSSH.Models
 
         /// <summary>List of port forwarding rules for this profile.</summary>
         public List<PortForwardRule> PortForwards { get; set; } = new();
+
+        /// <summary>SFTP path bookmarks for this connection.</summary>
+        public List<SftpBookmark> SftpBookmarks { get; set; } = new();
     }
 }

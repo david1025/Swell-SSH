@@ -162,6 +162,13 @@
                                             <TextBlock Text="新建连接"/>
                                         </StackPanel>
                                     </Button>
+                                    <Button Click="EmptyNewSftpButton_Click"
+                                            MinWidth="116">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE8B7;" FontSize="14"/>
+                                            <TextBlock Text="新建SFTP"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button Click="EmptyOpenConnectionsButton_Click"
                                             MinWidth="132">
                                         <StackPanel Orientation="Horizontal" Spacing="6">

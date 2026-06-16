@@ -510,6 +510,35 @@ namespace SwellSSH.Pages
             MainWindow.Instance?.OpenConnectionsPane();
         }
 
+        private async void EmptyNewSftpButton_Click(object sender, RoutedEventArgs e)
+        {
+            await OpenSftpTabAsync();
+        }
+
+        public async Task OpenSftpTabAsync()
+        {
+            var sftpPage = new SftpPage();
+            var tab = new TabViewItem
+            {
+                Header = "SFTP",
+                IconSource = new FontIconSource { Glyph = "\uE8B7" },
+                Content = sftpPage,
+                Tag = "sftp"
+            };
+
+            var flyout = new MenuFlyout();
+            var closeItem = new MenuFlyoutItem { Text = "关闭标签" };
+            closeItem.Click += (_, _) => CloseTab(tab);
+            flyout.Items.Add(closeItem);
+            tab.ContextFlyout = flyout;
+
+            TerminalTabView.TabItems.Add(tab);
+            TerminalTabView.SelectedItem = tab;
+            UpdateEmptyState();
+
+            await sftpPage.OpenRemoteSessionFromPickerAsync();
+        }
+
         private async void ToggleFavoriteMenu_Click(object sender, RoutedEventArgs e)
         {
             if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
@@ -1214,6 +1243,11 @@ namespace SwellSSH.Pages
                 {
                     tv.Dispose();
                 }
+            }
+
+            if (tab.Content is SftpPage sftpPage)
+            {
+                sftpPage.Dispose();
             }
 
             TerminalTabView.TabItems.Remove(tab);

@@ -38,6 +38,7 @@
                     <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
                     <SolidColorBrush x:Key="NavigationViewContentGridBorderBackground" Color="Transparent" />
                     <SolidColorBrush x:Key="NavigationViewContentGridBackground" Color="Transparent" />
+                    <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="SolidBackgroundFillColorBaseBrush" />
                 </NavigationView.Resources>
 
                 <!-- Pane Custom Content: Connection list -->
@@ -84,7 +85,7 @@
                             </ListView.ItemContainerTransitions>
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
-                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Padding" Value="16,0,0,0"/>
                                     <Setter Property="MinHeight" Value="32"/>
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                 </Style>
@@ -112,9 +113,18 @@
                     </Grid>
                 </NavigationView.PaneCustomContent>
 
-                <!-- Pane Footer: Theme toggle + Settings -->
+                <!-- Pane Footer: SFTP + Theme toggle + Settings -->
                 <NavigationView.PaneFooter>
                     <StackPanel Spacing="2" Padding="4,0,4,4">
+                        <NavigationViewItem x:Name="SftpNavItem"
+                                            Tapped="SftpNavItem_Tapped"
+                                            Content="SFTP"
+                                            Tag="sftp"
+                                            ToolTipService.ToolTip="打开 SFTP 文件管理">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8B7;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                         <NavigationViewItem x:Name="ThemeToggleNavItem"
                                             Tapped="ThemeToggleNavItem_Tapped"
                                             Content="浅色/深色模式"

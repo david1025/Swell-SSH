@@ -177,7 +177,10 @@ namespace SwellSSH.Pages
             _ = LoadSnippetsAsync();
             
             // Set initial Sidebar Tab
-            SidebarTabButton_Click(TabSftpButton, new RoutedEventArgs());
+            SidebarTabButton_Click(TabSnippetsButton, new RoutedEventArgs());
+
+            // Hook tab selection changed to update sidebar toggle button state
+            TerminalTabView.SelectionChanged += TerminalTabView_SelectionChanged;
 
             this.Unloaded += (_, _) =>
             {
@@ -920,17 +923,14 @@ namespace SwellSSH.Pages
             if (sender is ToggleButton btn && btn.Tag is string tag)
             {
                 // Reset all
-                TabSftpButton.IsChecked = false;
                 TabSnippetsButton.IsChecked = false;
                 TabHistoryButton.IsChecked = false;
                 TabThemesButton.IsChecked = false;
                 
-                TabSftpButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabSnippetsButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabHistoryButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabThemesButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
-                SidebarSftpView.Visibility = Visibility.Collapsed;
                 SidebarSnippetsView.Visibility = Visibility.Collapsed;
                 SidebarHistoryView.Visibility = Visibility.Collapsed;
                 SidebarThemesView.Visibility = Visibility.Collapsed;
@@ -941,10 +941,9 @@ namespace SwellSSH.Pages
                 
                 switch (tag)
                 {
-                    case "0": SidebarSftpView.Visibility = Visibility.Visible; break;
-                    case "1": SidebarSnippetsView.Visibility = Visibility.Visible; break;
-                    case "2": SidebarHistoryView.Visibility = Visibility.Visible; break;
-                    case "3": SidebarThemesView.Visibility = Visibility.Visible; break;
+                    case "0": SidebarSnippetsView.Visibility = Visibility.Visible; break;
+                    case "1": SidebarHistoryView.Visibility = Visibility.Visible; break;
+                    case "2": SidebarThemesView.Visibility = Visibility.Visible; break;
                 }
             }
         }
@@ -960,6 +959,29 @@ namespace SwellSSH.Pages
         public void ToggleSidebar()
         {
             TerminalSplitView.IsPaneOpen = !TerminalSplitView.IsPaneOpen;
+        }
+
+        private void TerminalTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateSidebarToggleButtonState();
+        }
+
+        /// <summary>
+        /// Enables the sidebar toggle button only when the selected tab is an SSH terminal session.
+        /// </summary>
+        private void UpdateSidebarToggleButtonState()
+        {
+            bool isSshTab = false;
+            if (TerminalTabView.SelectedItem is TabViewItem selectedTab)
+            {
+                // SSH tabs have TerminalSession as Tag; SFTP/settings tabs have string tags like "sftp"/"settings"
+                isSshTab = selectedTab.Tag is TerminalSession;
+            }
+
+            if (MainWindow.Instance != null)
+            {
+                MainWindow.Instance.SetSidebarToggleEnabled(isSshTab);
+            }
         }
 
 
@@ -1270,7 +1292,7 @@ namespace SwellSSH.Pages
                 Message = $"{profile.Username}@{profile.Host}:{profile.Port}"
             };
 
-            var tabContent = new Grid();
+            var tabContent = new Grid { Padding = new Thickness(4, 0, 4, 0) };
             tabContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             tabContent.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.SetRow(terminalView, 0);

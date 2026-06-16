@@ -11,7 +11,9 @@ using System.Threading.Tasks;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Renci.SshNet;
 using Renci.SshNet.Sftp;
 using SwellSSH.Models;
@@ -93,6 +95,8 @@ namespace SwellSSH.Pages
         public string SortColumn { get; set; } = "Name";
         public bool SortAscending { get; set; } = true;
         public List<SftpBookmark> Bookmarks { get; set; } = new();
+        public bool ShowHiddenFiles { get; set; }
+        public string SearchText { get; set; } = "";
         private string _remotePath = ".";
         public string RemotePath
         {
@@ -132,6 +136,8 @@ namespace SwellSSH.Pages
         private readonly HashSet<UIElement> _remoteDropTargets = new();
         private string _localSortColumn = "Name";
         private bool _localSortAscending = true;
+        private string _localSearchText = "";
+        private bool _localShowHiddenFiles;
         public ObservableCollection<SftpFileItemViewModel> LocalItems { get; } = new();
         public SftpTransferProgressViewModel TransferProgress { get; } = new();
 
@@ -146,6 +152,7 @@ namespace SwellSSH.Pages
         {
             InitializeComponent();
             Loaded += (_, _) => PopulateLocalHeader();
+            ActualThemeChanged += (_, _) => { RefreshHeaderIndicators(); UpdateSearchBoxBackgrounds(); };
             LocalFileList.ItemTemplate = BuildFileItemTemplate();
             AllowDrop = true;
             DragEnter += Page_DragOver;
@@ -178,12 +185,14 @@ namespace SwellSSH.Pages
         private void PopulateLocalHeader()
         {
             LocalHeaderGrid.Children.Clear();
-            AddHeaderButton(LocalHeaderGrid, "Name", 1, HorizontalAlignment.Left, "Name");
-            AddHeaderButton(LocalHeaderGrid, "Kind", 2, HorizontalAlignment.Left, "Kind");
-            AddHeaderButton(LocalHeaderGrid, "Size", 3, HorizontalAlignment.Right, "Size");
-            AddHeaderButton(LocalHeaderGrid, "Modified", 4, HorizontalAlignment.Right, "Modified");
-            AddHeaderDivider(LocalHeaderGrid, 0); AddHeaderDivider(LocalHeaderGrid, 1);
-            AddHeaderDivider(LocalHeaderGrid, 2); AddHeaderDivider(LocalHeaderGrid, 3);
+            AddSortHeaderButton(LocalHeaderGrid, "Name", 1, HorizontalAlignment.Left, "Name");
+            AddSortHeaderButton(LocalHeaderGrid, "Kind", 2, HorizontalAlignment.Left, "Kind");
+            AddSortHeaderButton(LocalHeaderGrid, "Size", 3, HorizontalAlignment.Right, "Size");
+            AddSortHeaderButton(LocalHeaderGrid, "Modified", 4, HorizontalAlignment.Right, "Modified");
+            AddSortHeaderDivider(LocalHeaderGrid, 0);
+            AddSortHeaderDivider(LocalHeaderGrid, 1);
+            AddSortHeaderDivider(LocalHeaderGrid, 2);
+            AddSortHeaderDivider(LocalHeaderGrid, 3);
         }
 
         private async Task RefreshLocalAsync()
@@ -191,14 +200,23 @@ namespace SwellSSH.Pages
             try
             {
                 var path = LocalPath;
+                var searchText = _localSearchText;
+                var showHidden = _localShowHiddenFiles;
                 var items = await Task.Run(() =>
                 {
                     var result = new List<SftpFileItemViewModel>();
                     var parent = Directory.GetParent(path);
                     if (parent != null) result.Add(new SftpFileItemViewModel { Name = "..", FullPath = parent.FullName, IsDirectory = true, IsParent = true });
-                    var dirs = Directory.EnumerateDirectories(path).Select(p => new DirectoryInfo(p)).Select(d => new SftpFileItemViewModel { Name = d.Name, FullPath = d.FullName, IsDirectory = true, Modified = d.LastWriteTime });
-                    var files = Directory.EnumerateFiles(path).Select(p => new FileInfo(p)).Select(f => new SftpFileItemViewModel { Name = f.Name, FullPath = f.FullName, IsDirectory = false, Size = f.Length, Modified = f.LastWriteTime });
-                    result.AddRange(SortItems(dirs.Concat(files), _localSortColumn, _localSortAscending));
+                    var dirInfos = Directory.EnumerateDirectories(path).Select(p => new DirectoryInfo(p));
+                    if (!showHidden) dirInfos = dirInfos.Where(d => !d.Attributes.HasFlag(System.IO.FileAttributes.Hidden));
+                    var fileInfos = Directory.EnumerateFiles(path).Select(p => new FileInfo(p));
+                    if (!showHidden) fileInfos = fileInfos.Where(f => !f.Attributes.HasFlag(System.IO.FileAttributes.Hidden));
+                    var dirs = dirInfos.Select(d => new SftpFileItemViewModel { Name = d.Name, FullPath = d.FullName, IsDirectory = true, Modified = d.LastWriteTime });
+                    var files = fileInfos.Select(f => new SftpFileItemViewModel { Name = f.Name, FullPath = f.FullName, IsDirectory = false, Size = f.Length, Modified = f.LastWriteTime });
+                    var all = dirs.Concat(files);
+                    if (!string.IsNullOrWhiteSpace(searchText))
+                        all = all.Where(i => i.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+                    result.AddRange(SortItems(all, _localSortColumn, _localSortAscending));
                     return result;
                 });
                 LocalItems.Clear();
@@ -211,12 +229,17 @@ namespace SwellSSH.Pages
         {
             try
             {
+                var showHidden = session.ShowHiddenFiles;
+                var searchText = session.SearchText;
                 var items = await Task.Run(() =>
                 {
                     var result = new List<SftpFileItemViewModel>();
                     if (session.RemotePath != "/" && session.RemotePath != ".")
                         result.Add(new SftpFileItemViewModel { Name = "..", FullPath = GetRemoteParent(session.RemotePath), IsDirectory = true, IsParent = true });
-                    result.AddRange(SortItems(session.Client.ListDirectory(session.RemotePath).Where(f => f.Name != "." && f.Name != "..").Select(ToRemoteItem), session.SortColumn, session.SortAscending));
+                    var all = session.Client.ListDirectory(session.RemotePath).Where(f => f.Name != "." && f.Name != "..").Select(ToRemoteItem);
+                    if (!showHidden) all = all.Where(i => !i.Name.StartsWith("."));
+                    if (!string.IsNullOrWhiteSpace(searchText)) all = all.Where(i => i.Name.Contains(searchText, StringComparison.OrdinalIgnoreCase));
+                    result.AddRange(SortItems(all, session.SortColumn, session.SortAscending));
                     return result;
                 });
                 session.Items.Clear();
@@ -263,6 +286,70 @@ namespace SwellSSH.Pages
         private async void LocalPathBox_KeyDown(object sender, KeyRoutedEventArgs e) { if (e.Key != Windows.System.VirtualKey.Enter) return; e.Handled = true; var p = LocalPathBox.Text.Trim(); if (Directory.Exists(p)) { LocalPath = Path.GetFullPath(p); await RefreshLocalAsync(); } else ShowStatus("路径不存在", p, InfoBarSeverity.Warning); }
         private async void LocalUpButton_Click(object sender, RoutedEventArgs e) { var p = Directory.GetParent(LocalPath); if (p == null) return; LocalPath = p.FullName; await RefreshLocalAsync(); }
         private async void LocalRefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshLocalAsync();
+        private async void LocalSearchBox_TextChanged(object sender, TextChangedEventArgs e) { _localSearchText = LocalSearchBox.Text; await RefreshLocalAsync(); }
+        private async void LocalHiddenFilesToggle_Click(object sender, RoutedEventArgs e) { _localShowHiddenFiles = LocalHiddenFilesToggle.IsChecked == true; await RefreshLocalAsync(); }
+
+        private void LocalSearchIcon_Click(object sender, RoutedEventArgs e)
+        {
+            LocalSearchIconBtn.Visibility = Visibility.Collapsed;
+            LocalSearchBox.Visibility = Visibility.Visible;
+            AnimateSearchWidth(LocalSearchContainer, 34, 160, 250);
+            LocalSearchBox.Focus(FocusState.Programmatic);
+        }
+        private async void CollapseLocalSearch(object sender, RoutedEventArgs e)
+        {
+            AnimateSearchWidth(LocalSearchContainer, 160, 34, 150);
+            LocalSearchBox.Text = "";
+            LocalSearchBox.Visibility = Visibility.Collapsed;
+            LocalSearchIconBtn.Visibility = Visibility.Visible;
+            if (_localSearchText != "") { _localSearchText = ""; await RefreshLocalAsync(); }
+        }
+        private void LocalSearchBox_KeyDown2(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape) { e.Handled = true; CollapseLocalSearch(sender, e); }
+        }
+        private void LocalSearchBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(LocalSearchBox.Text)) CollapseLocalSearch(sender, e);
+        }
+
+        private void UpdateSearchBoxBackgrounds()
+        {
+            var bg = GetSearchBoxBackgroundBrush();
+            LocalSearchBox.Resources["TextControlBackground"] = bg;
+            LocalSearchBox.Resources["TextControlBackgroundFocused"] = bg;
+            LocalSearchBox.Resources["TextControlBackgroundPointerOver"] = bg;
+            LocalSearchBox.Resources["TextControlBackgroundDisabled"] = bg;
+            foreach (var tab in RemoteTabView.TabItems.OfType<TabViewItem>())
+            {
+                if (tab.Content is Grid root)
+                    foreach (var tb in FindVisualDescendants<TextBox>(root))
+                    {
+                        tb.Resources["TextControlBackground"] = bg;
+                        tb.Resources["TextControlBackgroundFocused"] = bg;
+                        tb.Resources["TextControlBackgroundPointerOver"] = bg;
+                        tb.Resources["TextControlBackgroundDisabled"] = bg;
+                    }
+            }
+        }
+
+        private Brush GetSearchBoxBackgroundBrush()
+        {
+            var themeKey = ActualTheme == ElementTheme.Dark ? "Dark" : "Light";
+            if (Resources.ThemeDictionaries.TryGetValue(themeKey, out var themeObj) &&
+                themeObj is ResourceDictionary themeDict &&
+                themeDict.TryGetValue("SearchBoxBackgroundColor", out var val) && val is Windows.UI.Color c)
+                return new SolidColorBrush(c);
+            return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+
+        private static void AnimateSearchWidth(FrameworkElement target, double from, double to, int ms)
+        {
+            var anim = new DoubleAnimation { From = from, To = to, Duration = new Duration(TimeSpan.FromMilliseconds(ms)), EnableDependentAnimation = true };
+            var sb = new Storyboard(); sb.Children.Add(anim);
+            Storyboard.SetTarget(anim, target); Storyboard.SetTargetProperty(anim, "Width");
+            sb.Begin();
+        }
         private async void LocalFileList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e) { if (LocalFileList.SelectedItem is not SftpFileItemViewModel item || !item.IsDirectory) return; LocalPath = item.FullPath; await RefreshLocalAsync(); }
 
         private async void LocalFileList_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
@@ -292,7 +379,7 @@ namespace SwellSSH.Pages
                 var client = await Task.Run(() => BuildSftpClient(profile));
                 var session = new SftpRemoteSession(profile, client) { RemotePath = client.WorkingDirectory };
                 var content = BuildRemoteTabContent(session);
-                var tab = new TabViewItem { Header = profile.Name, IconSource = new FontIconSource { Glyph = "\uE8B7" }, Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Tag = session };
+                var tab = new TabViewItem { Header = profile.Name, IconSource = new FontIconSource { Glyph = "\uE8B7", FontSize = 14 }, Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Tag = session, VerticalAlignment = VerticalAlignment.Center };
                 RemoteTabView.TabItems.Add(tab); RemoteTabView.SelectedItem = tab; UpdateRemoteEmptyState();
                 await LoadBookmarksAsync(session); await RefreshRemoteAsync(session); HideTransferStatus();
             }
@@ -338,20 +425,61 @@ namespace SwellSSH.Pages
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             var title = new TextBlock { Text = $"{session.Profile.Username}@{session.Profile.Host}", Style = (Style)Application.Current.Resources["BodyStrongTextBlockStyle"], VerticalAlignment = VerticalAlignment.Center }; Grid.SetColumn(title, 0);
 
+            // Expandable search container
+            var remoteSearchBox = new TextBox { PlaceholderText = "搜索文件...", FontSize = 13, Visibility = Visibility.Collapsed, Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent), BorderThickness = new Thickness(0), Padding = new Thickness(4, 5, 4, 5) };
+            var bg = GetSearchBoxBackgroundBrush();
+            remoteSearchBox.Resources["TextControlBackground"] = bg;
+            remoteSearchBox.Resources["TextControlBackgroundFocused"] = bg;
+            remoteSearchBox.Resources["TextControlBackgroundPointerOver"] = bg;
+            remoteSearchBox.Resources["TextControlBackgroundDisabled"] = bg;
+            remoteSearchBox.Resources["TextControlBorderBrush"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            remoteSearchBox.Resources["TextControlBorderBrushFocused"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            remoteSearchBox.Resources["TextControlBorderBrushPointerOver"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            remoteSearchBox.Resources["TextControlBorderBrushDisabled"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            remoteSearchBox.TextChanged += async (_, _) => { session.SearchText = remoteSearchBox.Text; await RefreshRemoteAsync(session); };
+            var remoteSearchIconBtn = new Button { Width = 34, Height = 34, Padding = new Thickness(0), Content = new FontIcon { Glyph = "\uE721", FontSize = 14 } };
+            ToolTipService.SetToolTip(remoteSearchIconBtn, "搜索");
+            var remoteSearchContainer = new Grid { Width = 34.0, ColumnSpacing = 0 };
+            remoteSearchContainer.Children.Add(remoteSearchBox); remoteSearchContainer.Children.Add(remoteSearchIconBtn);
+            remoteSearchIconBtn.Click += (_, _) =>
+            {
+                remoteSearchIconBtn.Visibility = Visibility.Collapsed;
+                remoteSearchBox.Visibility = Visibility.Visible;
+                AnimateSearchWidth(remoteSearchContainer, 34, 160, 250);
+                remoteSearchBox.Focus(FocusState.Programmatic);
+            };
+            remoteSearchBox.KeyDown += (_, e) => { if (e.Key == Windows.System.VirtualKey.Escape) { e.Handled = true; closeRemoteSearch(); } };
+            remoteSearchBox.LostFocus += (_, _) => { if (string.IsNullOrEmpty(remoteSearchBox.Text)) closeRemoteSearch(); };
+            void closeRemoteSearch()
+            {
+                AnimateSearchWidth(remoteSearchContainer, 160, 34, 150);
+                remoteSearchBox.Text = ""; remoteSearchBox.Visibility = Visibility.Collapsed;
+                remoteSearchIconBtn.Visibility = Visibility.Visible;
+                if (session.SearchText != "") { session.SearchText = ""; _ = RefreshRemoteAsync(session); }
+            }
+            Grid.SetColumn(remoteSearchContainer, 1);
+
+            var remoteHiddenBtn = new ToggleButton { Width = 34, Height = 34, Padding = new Thickness(0), IsChecked = false, Content = new FontIcon { Glyph = "\uED1A", FontSize = 14 } };
+            ToolTipService.SetToolTip(remoteHiddenBtn, "显示隐藏文件");
+            remoteHiddenBtn.Click += async (_, _) => { session.ShowHiddenFiles = remoteHiddenBtn.IsChecked == true; await RefreshRemoteAsync(session); };
+            Grid.SetColumn(remoteHiddenBtn, 2);
+
             var upBtn = new Button { Width = 34, Height = 34, Padding = new Thickness(0), Content = new FontIcon { Glyph = "\uE74A", FontSize = 14 } };
             ToolTipService.SetToolTip(upBtn, "返回上级");
-            upBtn.Click += async (_, _) => { session.RemotePath = GetRemoteParent(session.RemotePath); await RefreshRemoteAsync(session); }; Grid.SetColumn(upBtn, 1);
+            upBtn.Click += async (_, _) => { session.RemotePath = GetRemoteParent(session.RemotePath); await RefreshRemoteAsync(session); }; Grid.SetColumn(upBtn, 3);
 
             var refBtn = new Button { Width = 34, Height = 34, Padding = new Thickness(0), Content = new FontIcon { Glyph = "\uE72C", FontSize = 14 } };
-            ToolTipService.SetToolTip(refBtn, "刷新"); refBtn.Click += async (_, _) => await RefreshRemoteAsync(session); Grid.SetColumn(refBtn, 2);
+            ToolTipService.SetToolTip(refBtn, "刷新"); refBtn.Click += async (_, _) => await RefreshRemoteAsync(session); Grid.SetColumn(refBtn, 4);
 
             var bmBtn = new Button { Width = 34, Height = 34, Padding = new Thickness(0), Content = new FontIcon { Glyph = "\uE734", FontSize = 14 } };
-            ToolTipService.SetToolTip(bmBtn, "书签"); bmBtn.Click += (_, _) => ShowBookmarkFlyout(bmBtn, session); Grid.SetColumn(bmBtn, 3);
+            ToolTipService.SetToolTip(bmBtn, "书签"); bmBtn.Click += (_, _) => ShowBookmarkFlyout(bmBtn, session); Grid.SetColumn(bmBtn, 5);
 
-            header.Children.Add(title); header.Children.Add(upBtn); header.Children.Add(refBtn); header.Children.Add(bmBtn); Grid.SetRow(header, 0);
+            header.Children.Add(title); header.Children.Add(remoteSearchContainer); header.Children.Add(remoteHiddenBtn); header.Children.Add(upBtn); header.Children.Add(refBtn); header.Children.Add(bmBtn); Grid.SetRow(header, 0);
 
             var pathBox = new TextBox { FontFamily = new FontFamily("Consolas"), Text = session.RemotePath };
             session.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(SftpRemoteSession.RemotePath)) pathBox.Text = session.RemotePath; };
@@ -387,47 +515,159 @@ namespace SwellSSH.Pages
 
         private Grid BuildFileHeaderGrid(SftpRemoteSession session)
         {
-            var g = new Grid { Height = 32, ColumnSpacing = 10, Padding = new Thickness(8, 0, 8, 0), Background = (Brush)Application.Current.Resources["LayerFillColorAltBrush"], BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], BorderThickness = new Thickness(0, 0, 0, 1), Tag = session };
-            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) }); g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
-            RebuildHeaderGrid(g, session); return g;
+            var g = new Grid { Tag = session };
+            // Apply the same XAML-defined style used by LocalHeaderGrid.
+            // {ThemeResource} brushes inside the style resolve in this element's
+            // actual theme context, so dark/light mode renders correctly even
+            // when hosted inside a TabView.
+            if (Resources.TryGetValue("FileHeaderGridStyle", out var styleObj) && styleObj is Style s)
+                g.Style = s;
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(84) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(92) });
+            g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
+            RebuildHeaderGrid(g, session);
+            return g;
         }
 
-        private void RebuildHeaderGrid(Grid g, SftpRemoteSession s) { g.Children.Clear(); AddHeaderButton(g, "Name", 1, HorizontalAlignment.Left, new RemoteSortHeader(s, "Name")); AddHeaderButton(g, "Kind", 2, HorizontalAlignment.Left, new RemoteSortHeader(s, "Kind")); AddHeaderButton(g, "Size", 3, HorizontalAlignment.Right, new RemoteSortHeader(s, "Size")); AddHeaderButton(g, "Modified", 4, HorizontalAlignment.Right, new RemoteSortHeader(s, "Modified")); AddHeaderDivider(g, 0); AddHeaderDivider(g, 1); AddHeaderDivider(g, 2); AddHeaderDivider(g, 3); }
+        private void RebuildHeaderGrid(Grid g, SftpRemoteSession s)
+        {
+            g.Children.Clear();
+            AddSortHeaderButton(g, "Name", 1, HorizontalAlignment.Left, new RemoteSortHeader(s, "Name"));
+            AddSortHeaderButton(g, "Kind", 2, HorizontalAlignment.Left, new RemoteSortHeader(s, "Kind"));
+            AddSortHeaderButton(g, "Size", 3, HorizontalAlignment.Right, new RemoteSortHeader(s, "Size"));
+            AddSortHeaderButton(g, "Modified", 4, HorizontalAlignment.Right, new RemoteSortHeader(s, "Modified"));
+            AddSortHeaderDivider(g, 0);
+            AddSortHeaderDivider(g, 1);
+            AddSortHeaderDivider(g, 2);
+            AddSortHeaderDivider(g, 3);
+        }
 
-        private void AddHeaderButton(Grid grid, string text, int column, HorizontalAlignment alignment, object tag)
+        /// <summary>
+        /// Resolves a WinUI 3 theme resource brush using the page's <see cref="ActualTheme"/>,
+        /// so the correct dark/light value is returned regardless of which theme context the
+        /// calling element lives in (e.g. inside a TabView that may override the app theme).
+        /// The header grids are fully rebuilt on ActualThemeChanged, so this only needs to be
+        /// correct at call time.
+        /// </summary>
+        private Brush GetThemeBrush(string resourceKey)
+        {
+            var themeKey = ActualTheme == ElementTheme.Dark ? "Dark" : "Light";
+            // Try page-level theme dictionaries first, then application-level
+            var dicts = new[]
+            {
+                Resources.ThemeDictionaries,
+                Application.Current.Resources.ThemeDictionaries
+            };
+            foreach (var allDicts in dicts)
+            {
+                if (allDicts.TryGetValue(themeKey, out var themeObj) &&
+                    themeObj is ResourceDictionary themeDict &&
+                    themeDict.TryGetValue(resourceKey, out var val) && val is Brush b)
+                    return b;
+            }
+            // Last-resort fallback (application-level, same as before)
+            return Application.Current.Resources[resourceKey] as Brush
+                   ?? new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+
+        private void AddSortHeaderButton(Grid grid, string text, int column, HorizontalAlignment alignment, object tag)
         {
             var sg = GetHeaderSortGlyph(text, tag);
-            var content = new Grid { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = alignment };
-            content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            if (sg != null) content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var txt = new TextBlock { Text = text, FontSize = 12, FontWeight = sg == null ? Microsoft.UI.Text.FontWeights.Normal : Microsoft.UI.Text.FontWeights.SemiBold };
-            Grid.SetColumn(txt, 0); content.Children.Add(txt);
-            if (sg != null) { var icon = new FontIcon { Glyph = sg, FontSize = 10, Margin = new Thickness(4, 0, 0, 0) }; Grid.SetColumn(icon, 1); content.Children.Add(icon); }
-            var btn = new Button { Tag = tag, Padding = new Thickness(4, 0, 12, 0), Margin = new Thickness(0), MinHeight = 0, MinWidth = 0, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = alignment, VerticalAlignment = VerticalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Center, Content = content };
-            ApplyHeaderButtonTheme(btn, txt, sg != null ? (FontIcon)content.Children[1] : null);
-            btn.Click += SortHeader_Click; Grid.SetColumn(btn, column); grid.Children.Add(btn);
-        }
+            var isActive = sg != null;
+            var primaryFg = GetThemeBrush("TextFillColorPrimaryBrush");
 
-        private void ApplyHeaderButtonTheme(Button btn, TextBlock txt, FontIcon? icon)
-        {
-            var fg = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
-            var fgSec = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
-            txt.Foreground = fg;
-            if (icon != null) icon.Foreground = fgSec;
-            btn.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            btn.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            btn.Foreground = fg;
-            btn.Resources["ButtonBackgroundPointerOver"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            btn.Resources["ButtonBackgroundPressed"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            // Build inner content: text + optional sort glyph
+            var content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                VerticalAlignment = VerticalAlignment.Center,
+                HorizontalAlignment = alignment
+            };
+
+            var txt = new TextBlock
+            {
+                Text = text,
+                FontSize = 12,
+                FontWeight = isActive ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
+                Foreground = primaryFg,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            content.Children.Add(txt);
+
+            if (isActive)
+            {
+                var icon = new FontIcon
+                {
+                    Glyph = sg,
+                    FontSize = 10,
+                    Foreground = primaryFg,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                content.Children.Add(icon);
+            }
+
+            // Build the button with subtle hover feedback
+            // Padding="0" so text aligns exactly with body cell content (same column grid)
+            // Margin right=6px gives visual breathing room from the column divider
+            var btn = new Button
+            {
+                Tag = tag,
+                Padding = new Thickness(0),
+                Margin = new Thickness(0, 0, 6, 0),
+                MinHeight = 0,
+                MinWidth = 0,
+                Height = 28,
+                CornerRadius = new CornerRadius(4),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = alignment,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Content = content,
+                Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent)
+            };
+
+            // Theme-aware hover/press resources
+            var subtleHover = GetThemeBrush("SubtleFillColorSecondaryBrush");
+            var subtlePress = GetThemeBrush("SubtleFillColorTertiaryBrush");
+
+            btn.Resources["ButtonBackgroundPointerOver"] = subtleHover;
+            btn.Resources["ButtonBackgroundPressed"] = subtlePress;
             btn.Resources["ButtonBorderBrushPointerOver"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             btn.Resources["ButtonBorderBrushPressed"] = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            btn.Resources["ButtonForegroundPointerOver"] = fg;
-            btn.Resources["ButtonForegroundPressed"] = fg;
+            btn.Resources["ButtonForegroundPointerOver"] = primaryFg;
+            btn.Resources["ButtonForegroundPressed"] = primaryFg;
+
+            btn.Click += SortHeader_Click;
+            Grid.SetColumn(btn, column);
+            grid.Children.Add(btn);
         }
 
-        private string? GetHeaderSortGlyph(string column, object tag) { string? sc; bool asc; if (tag is RemoteSortHeader rh) { sc = rh.Session.SortColumn; asc = rh.Session.SortAscending; } else { sc = _localSortColumn; asc = _localSortAscending; } return sc == column ? (asc ? "\uE70E" : "\uE70D") : null; }
+        private string? GetHeaderSortGlyph(string column, object tag)
+        {
+            string? sc; bool asc;
+            if (tag is RemoteSortHeader rh) { sc = rh.Session.SortColumn; asc = rh.Session.SortAscending; }
+            else { sc = _localSortColumn; asc = _localSortAscending; }
+            return sc == column ? (asc ? "\uE70E" : "\uE70D") : null;
+        }
 
-        private void AddHeaderDivider(Grid grid, int column) { var d = new Border { Width = 1, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Stretch, Background = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"], Opacity = 0.9, IsHitTestVisible = false }; Grid.SetColumn(d, column); grid.Children.Add(d); }
+        private void AddSortHeaderDivider(Grid grid, int column)
+        {
+            var d = new Border
+            {
+                Width = 1,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Margin = new Thickness(0, 6, 0, 6),
+                Background = GetThemeBrush("DividerStrokeColorDefaultBrush"),
+                IsHitTestVisible = false
+            };
+            Grid.SetColumn(d, column);
+            grid.Children.Add(d);
+        }
 
         private MenuFlyout BuildRemoteItemFlyout(SftpRemoteSession session, SftpFileItemViewModel item)
         {

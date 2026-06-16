@@ -9,7 +9,7 @@
 
     <Page.Resources>
         <DataTemplate x:Key="SidebarGroupTemplate" x:DataType="local:ConnectionGroupViewModel">
-            <Grid Padding="0,12,0,4" Background="Transparent" Tapped="GroupHeader_Tapped" BackgroundSizing="InnerBorderEdge">
+            <Grid Padding="8,12,0,4" Background="Transparent" Tapped="GroupHeader_Tapped" BackgroundSizing="InnerBorderEdge">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -20,7 +20,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="SidebarItemTemplate" x:DataType="local:ConnectionItemViewModel">
-            <Grid Padding="16,8,4,8" ColumnSpacing="10" Background="Transparent">
+            <Grid Padding="8,8,4,8" ColumnSpacing="10" Background="Transparent">
                 <Grid.ContextFlyout>
                     <MenuFlyout>
                         <MenuFlyoutItem Text="连接" Click="ConnectMenu_Click">
@@ -195,38 +195,27 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             
-                            <!-- Tab 0: SFTP (Placeholder) -->
-                            <ToggleButton x:Name="TabSftpButton" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="0">
-                                <FontIcon Glyph="&#xE8B7;" FontSize="14"/>
-                            </ToggleButton>
-
-                            <!-- Tab 1: Snippets -->
-                            <ToggleButton x:Name="TabSnippetsButton" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="1">
+                            <!-- Tab 0: Snippets -->
+                            <ToggleButton x:Name="TabSnippetsButton" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="0">
                                 <FontIcon Glyph="&#xE943;" FontSize="14"/>
                             </ToggleButton>
 
-                            <!-- Tab 2: History (Placeholder) -->
-                            <ToggleButton x:Name="TabHistoryButton" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="2">
+                            <!-- Tab 1: History (Placeholder) -->
+                            <ToggleButton x:Name="TabHistoryButton" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="1">
                                 <FontIcon Glyph="&#xE823;" FontSize="14"/>
                             </ToggleButton>
 
-                            <!-- Tab 3: Themes -->
-                            <ToggleButton x:Name="TabThemesButton" Grid.Column="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="3">
+                            <!-- Tab 2: Themes -->
+                            <ToggleButton x:Name="TabThemesButton" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="2">
                                 <FontIcon Glyph="&#xE790;" FontSize="14"/>
                             </ToggleButton>
                         </Grid>
 
                         <!-- Views Container -->
                         <Grid Grid.Row="1">
-                            <!-- View 0: SFTP -->
-                            <Grid x:Name="SidebarSftpView" Visibility="Collapsed">
-                                <TextBlock Text="SFTP 模块开发中..." HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5"/>
-                            </Grid>
-
-                            <!-- View 1: Snippets -->
+                            <!-- View 0: Snippets -->
                             <Grid x:Name="SidebarSnippetsView" Visibility="Collapsed" Margin="16,0">
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -269,12 +258,12 @@
                                 </ListView>
                             </Grid>
 
-                            <!-- View 2: History -->
+                            <!-- View 1: History -->
                             <Grid x:Name="SidebarHistoryView" Visibility="Collapsed">
                                 <TextBlock Text="历史记录模块开发中..." HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.5"/>
                             </Grid>
 
-                            <!-- View 3: Themes -->
+                            <!-- View 2: Themes -->
                             <Grid x:Name="SidebarThemesView" Visibility="Collapsed">
                                 <ListView ItemsSource="{x:Bind Themes, Mode=OneWay}" SelectionMode="Single" SelectionChanged="SidebarThemesList_SelectionChanged" Margin="8,0">
                                     <ListView.ItemContainerStyle>

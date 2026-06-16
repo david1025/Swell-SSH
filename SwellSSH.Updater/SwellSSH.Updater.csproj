@@ -14,6 +14,9 @@
     <!-- 只在 CI publish 时激活（命令行传入 -p:PublishAot=true），本地 build/run 不受影响 -->
     <StripSymbols Condition="'$(PublishAot)' == 'true'">true</StripSymbols>
     <OptimizeSpeed>false</OptimizeSpeed>
+    <!-- Keep output at bin\Debug\ (no platform subfolder) so the parent
+         ProjectReference can find the files regardless of Platform -->
+    <AppendPlatformToOutputPath>false</AppendPlatformToOutputPath>
   </PropertyGroup>
 
   <PropertyGroup>

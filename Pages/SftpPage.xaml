@@ -8,6 +8,35 @@
     NavigationCacheMode="Required">
 
     <Page.Resources>
+        <ResourceDictionary>
+            <!--
+                Theme-aware brush overrides for the sort-header buttons built in C#.
+                GetThemeBrush() looks up Page.Resources.ThemeDictionaries first,
+                guaranteeing correct values regardless of app-level theme context
+                (fixes dark-mode text being black when hosted inside a TabView).
+            -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#C5C5C5"/>
+                    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#1FFFFFFF"/>
+                    <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#0FFFFFFF"/>
+                    <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="#15FFFFFF"/>
+                    <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#2B2B2B"/>
+                    <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#1FFFFFFF"/>
+                    <Color x:Key="SearchBoxBackgroundColor">#2A2A2A</Color>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="TextFillColorPrimaryBrush" Color="#1A1A1A"/>
+                    <SolidColorBrush x:Key="TextFillColorSecondaryBrush" Color="#707070"/>
+                    <SolidColorBrush x:Key="SubtleFillColorSecondaryBrush" Color="#0A000000"/>
+                    <SolidColorBrush x:Key="SubtleFillColorTertiaryBrush" Color="#14000000"/>
+                    <SolidColorBrush x:Key="DividerStrokeColorDefaultBrush" Color="#14000000"/>
+                    <SolidColorBrush x:Key="ControlFillColorDefaultBrush" Color="#F0F0F0"/>
+                    <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#0F000000"/>
+                    <Color x:Key="SearchBoxBackgroundColor">#F3F3F3</Color>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         <DataTemplate x:Key="FileItemTemplate" x:DataType="local:SftpFileItemViewModel">
             <Grid Padding="8,7" ColumnSpacing="10" Background="Transparent">
                 <Grid.ColumnDefinitions>
@@ -48,13 +77,15 @@
             </Grid>
         </DataTemplate>
         <Style x:Key="FileHeaderGridStyle" TargetType="Grid">
-            <Setter Property="Height" Value="32"/>
+            <Setter Property="Height" Value="34"/>
             <Setter Property="ColumnSpacing" Value="10"/>
             <Setter Property="Padding" Value="8,0"/>
-            <Setter Property="Background" Value="{ThemeResource LayerFillColorAltBrush}"/>
+            <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}"/>
             <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="CornerRadius" Value="6,6,0,0"/>
         </Style>
+        </ResourceDictionary>
     </Page.Resources>
 
     <Grid Padding="16,8,16,16" RowSpacing="10">
@@ -87,14 +118,56 @@
 
                 <Grid Grid.Row="1" ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="本机文件"
                                Style="{ThemeResource BodyStrongTextBlockStyle}"
                                VerticalAlignment="Center"/>
-                    <Button Grid.Column="1"
+                    <Grid Grid.Column="2" x:Name="LocalSearchContainer" Width="34" ColumnSpacing="0">
+                        <TextBox x:Name="LocalSearchBox"
+                                 PlaceholderText="搜索文件..."
+                                 FontSize="13"
+                                 Visibility="Collapsed"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Padding="4,5,4,5"
+                                 TextChanged="LocalSearchBox_TextChanged"
+                                 KeyDown="LocalSearchBox_KeyDown2"
+                                 LostFocus="LocalSearchBox_LostFocus">
+                            <TextBox.Resources>
+                                <SolidColorBrush x:Key="TextControlBackground" Color="{ThemeResource SearchBoxBackgroundColor}"/>
+                                <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="{ThemeResource SearchBoxBackgroundColor}"/>
+                                <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="{ThemeResource SearchBoxBackgroundColor}"/>
+                                <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="{ThemeResource SearchBoxBackgroundColor}"/>
+                                <SolidColorBrush x:Key="TextControlBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TextControlBorderBrushDisabled" Color="Transparent"/>
+                            </TextBox.Resources>
+                        </TextBox>
+                        <Button x:Name="LocalSearchIconBtn"
+                                Width="34" Height="34" Padding="0"
+                                ToolTipService.ToolTip="搜索"
+                                Click="LocalSearchIcon_Click">
+                            <FontIcon Glyph="&#xE721;" FontSize="14"/>
+                        </Button>
+                    </Grid>
+                    <ToggleButton Grid.Column="3"
+                                  x:Name="LocalHiddenFilesToggle"
+                                  Width="34"
+                                  Height="34"
+                                  Padding="0"
+                                  IsChecked="False"
+                                  ToolTipService.ToolTip="显示隐藏文件"
+                                  Click="LocalHiddenFilesToggle_Click">
+                        <FontIcon Glyph="&#xED1A;" FontSize="14"/>
+                    </ToggleButton>
+                    <Button Grid.Column="4"
                             Width="34"
                             Height="34"
                             Padding="0"
@@ -102,7 +175,7 @@
                             Click="LocalUpButton_Click">
                         <FontIcon Glyph="&#xE74A;" FontSize="14"/>
                     </Button>
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="5"
                             Width="34"
                             Height="34"
                             Padding="0"
@@ -163,6 +236,9 @@
                          AddTabButtonClick="RemoteTabView_AddTabButtonClick"
                          TabCloseRequested="RemoteTabView_TabCloseRequested"
                          TabWidthMode="Equal">
+                    <TabView.Resources>
+                        <x:Double x:Key="TabViewItemHeaderHeight">36</x:Double>
+                    </TabView.Resources>
                     <TabView.TabStripHeader>
                         <TextBlock Text="远程服务器"
                                    Style="{ThemeResource BodyStrongTextBlockStyle}"

@@ -60,6 +60,10 @@ namespace SwellSSH
             // Navigate to MainPage immediately
             ContentFrame.Navigate(typeof(MainPage));
 
+            // Sidebar toggle is disabled until an SSH tab is selected
+            GlobalToggleSidebarButton.IsEnabled = false;
+            GlobalToggleSidebarButton.Opacity = 0.4;
+
             // Pane open/close → sync connection list data
             MainNav.PaneOpening += (_, _) => SyncPaneConnectionList();
 
@@ -389,6 +393,16 @@ namespace SwellSSH
             }
         }
 
+        /// <summary>
+        /// Called by MainPage when the active tab changes.
+        /// The sidebar toggle button is enabled only when an SSH terminal tab is selected.
+        /// </summary>
+        public void SetSidebarToggleEnabled(bool enabled)
+        {
+            GlobalToggleSidebarButton.IsEnabled = enabled;
+            GlobalToggleSidebarButton.Opacity = enabled ? 1.0 : 0.4;
+        }
+
         public void OpenConnectionsPane()
         {
             SyncPaneConnectionList();
@@ -427,6 +441,18 @@ namespace SwellSSH
 
             MainNav.SelectedItem = null;
             MainNav.IsPaneOpen = false;
+        }
+
+        private async void SftpNavItem_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            MainNav.SelectedItem = null;
+            MainNav.IsPaneOpen = false;
+
+            if (ContentFrame.Content is MainPage mainPage)
+            {
+                await mainPage.OpenSftpTabAsync();
+            }
         }
 
         public async Task ToggleThemeAsync(UIElement? sourceElement = null)

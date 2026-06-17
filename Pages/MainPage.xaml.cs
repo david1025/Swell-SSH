@@ -205,6 +205,9 @@ namespace SwellSSH.Pages
 
         private void SetupKeyboardShortcuts()
         {
+            // Hide the default tooltip for keyboard accelerators so it doesn't show up everywhere
+            this.KeyboardAcceleratorPlacementMode = Microsoft.UI.Xaml.Input.KeyboardAcceleratorPlacementMode.Hidden;
+
             // Ctrl+T: New tab (invokes the add tab button logic)
             var ctrlT = new Microsoft.UI.Xaml.Input.KeyboardAccelerator 
             { 
@@ -544,6 +547,16 @@ namespace SwellSSH.Pages
         {
             if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
                 vm.IsIpVisible = !vm.IsIpVisible;
+        }
+
+        private void ShareMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement fe && fe.DataContext is ConnectionItemViewModel vm)
+            {
+                var dp = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                dp.SetText($"ssh {vm.Profile.Username}@{vm.Profile.Host} -p {vm.Profile.Port}");
+                Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dp);
+            }
         }
 
         // ── Quick Connect ────────────────────────────────────────────────────────────────────
@@ -1121,10 +1134,10 @@ namespace SwellSSH.Pages
             var tabContainer = FindVisualChildByName(TerminalTabView, "TabContainerGrid");
             if (tabContainer != null)
             {
-                // Align Sidebar with exact height of the TabStrip
+                // Align Sidebar with exact height of the TabStrip (40px)
                 if (SidebarPaneGrid != null)
                 {
-                    SidebarPaneGrid.Margin = new Thickness(0, tabContainer.ActualHeight, 0, 0);
+                    SidebarPaneGrid.Margin = new Thickness(0, 40, 0, 0);
                 }
             }
 

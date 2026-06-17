@@ -545,7 +545,7 @@ else if (settings.ColorScheme == "Termark Light")
             if (Canvas != null && Canvas.ReadyToDraw)
             {
                 Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
-                RootGrid.Background = null; // transparent — let Mica show through
+                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent); // transparent — let Mica show through
                 UpdateFont();
             }
             
@@ -631,7 +631,7 @@ else if (settings.ColorScheme == "Termark Light")
 
             _textFormat = new CanvasTextFormat
             {
-                FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Consolas" : _settings.FontFamily,
+                FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Cascadia Mono, Consolas" : _settings.FontFamily,
                 FontSize = (float)(_settings?.FontSize ?? 16),
                 WordWrapping = CanvasWordWrapping.NoWrap,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
@@ -641,7 +641,7 @@ else if (settings.ColorScheme == "Termark Light")
             // Keep canvas transparent so the Mica/Acrylic backdrop shows through.
             // _defaultBg is used only as a reference for cursor/text rendering, not as fill.
             Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
-            RootGrid.Background = null;
+            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
             // Use a 20-char string to average out any left/right layout padding.
             // This gives the most accurate per-character advance width for col calculation.
@@ -656,7 +656,7 @@ else if (settings.ColorScheme == "Termark Light")
             _charHeight = longLayout.LineSpacing;
             if (_charHeight <= 0) _charHeight = longLayout.LayoutBounds.Height;
             if (_charHeight <= 0) _charHeight = 16;
-            _charHeight = Math.Ceiling(_charHeight);
+            // Removed Math.Ceiling to prevent artificial vertical gaps between lines for box drawing characters
 
             if (Canvas.ActualWidth > 0 && Canvas.ActualHeight > 0)
             {
@@ -763,6 +763,7 @@ else if (settings.ColorScheme == "Termark Light")
                     TerminalCell currentAttr = row.Cells[0];
                     textChunk.Clear();
                     int chunkLogicalWidth = 0;
+                    bool chunkHasNonAscii = false;
 
                     for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
                     {
@@ -781,6 +782,7 @@ else if (settings.ColorScheme == "Termark Light")
                                 DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                                 textChunk.Clear();
                                 chunkLogicalWidth = 0;
+                                chunkHasNonAscii = false;
                             }
                             
                             var invertedAttr = cell;
@@ -812,15 +814,25 @@ else if (settings.ColorScheme == "Termark Light")
                             continue;
                         }
 
-                        if (cell.FgColor != currentAttr.FgColor || 
-                            cell.BgColor != currentAttr.BgColor ||
-                            cell.IsBold != currentAttr.IsBold)
+                        bool isNewNonAscii = cell.Char > 127;
+                        bool isNormalChar = cell.Char != '\0';
+
+                        bool colorsChanged = cell.FgColor != currentAttr.FgColor || 
+                                             cell.BgColor != currentAttr.BgColor ||
+                                             cell.IsBold != currentAttr.IsBold;
+
+                        bool needBreak = colorsChanged || 
+                                         (isNormalChar && chunkHasNonAscii) || 
+                                         (isNewNonAscii && chunkLogicalWidth > 0 && !chunkHasNonAscii);
+
+                        if (needBreak)
                         {
                             if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                             {
                                 DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                                 textChunk.Clear();
                                 chunkLogicalWidth = 0;
+                                chunkHasNonAscii = false;
                             }
                             startX = x;
                             currentAttr = cell;
@@ -829,6 +841,7 @@ else if (settings.ColorScheme == "Termark Light")
                         if (cell.Char != '\0')
                         {
                             textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
+                            if (cell.Char > 127) chunkHasNonAscii = true;
                         }
                         chunkLogicalWidth++;
                     }
@@ -892,7 +905,8 @@ else if (settings.ColorScheme == "Termark Light")
 
         private void UserControl_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            this.Focus(FocusState.Pointer);
+            // Use Programmatic focus instead of Pointer focus to forcefully grab focus from other panes
+            this.Focus(FocusState.Programmatic);
             e.Handled = true;
 
             var point = e.GetCurrentPoint(this);

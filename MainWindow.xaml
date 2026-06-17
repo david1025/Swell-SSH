@@ -47,7 +47,6 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*" MinHeight="100"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Header -->
@@ -91,41 +90,11 @@
                             </ListView.ItemContainerStyle>
                         </ListView>
 
-                        <!-- Bottom toolbar -->
-                        <StackPanel Grid.Row="3" Orientation="Horizontal" Padding="8,4,8,8" Spacing="4">
-                            <Button x:Name="PaneAddConnectionButton" Click="PaneAddConnectionButton_Click"
-                                    ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon Glyph="&#xE710;" FontSize="14"/>
-                                    <TextBlock Text="新建连接"/>
-                                </StackPanel>
-                            </Button>
-                            <Button x:Name="PaneEditConnectionButton" Click="PaneEditConnectionButton_Click"
-                                    ToolTipService.ToolTip="编辑所选连接">
-                                <FontIcon Glyph="&#xE70F;" FontSize="14"/>
-                            </Button>
-                            <Button x:Name="PaneDeleteConnectionButton" Click="PaneDeleteConnectionButton_Click"
-                                    ToolTipService.ToolTip="删除所选连接">
-                                <FontIcon Glyph="&#xE74D;" FontSize="14"/>
-                            </Button>
-                        </StackPanel>
                     </Grid>
                 </NavigationView.PaneCustomContent>
 
-                <!-- Pane Footer: Theme toggle + Settings -->
                 <NavigationView.PaneFooter>
                     <StackPanel Spacing="2" Padding="4,0,4,4">
-                        <NavigationViewItem x:Name="ThemeToggleNavItem"
-                                            Tapped="ThemeToggleNavItem_Tapped"
-                                            Content="浅色/深色模式"
-                                            Tag="theme_toggle"
-                                            ToolTipService.ToolTip="切换应用主题"
-                                            PointerEntered="ThemeToggleNavItem_PointerEntered"
-                                            PointerExited="ThemeToggleNavItem_PointerExited">
-                            <NavigationViewItem.Icon>
-                                <FontIcon x:Name="ThemeToggleIcon" Glyph="&#xE706;" />
-                            </NavigationViewItem.Icon>
-                        </NavigationViewItem>
                         <NavigationViewItem x:Name="SettingsNavItem"
                                             Tapped="SettingsNavItem_Tapped"
                                             Content="设置"
@@ -159,6 +128,19 @@
                     Padding="0"
                     Click="GlobalToggleSidebarButton_Click" ToolTipService.ToolTip="切换终端工具箱">
                 <FontIcon Glyph="&#xE90D;" FontSize="14"/>
+            </Button>
+
+            <!-- Pane Theme Toggle Button: aligned to the right side of the 300px navigation drawer -->
+            <Button x:Name="PaneThemeToggleButton"
+                    VerticalAlignment="Top" HorizontalAlignment="Left"
+                    Width="36" Height="36"
+                    Margin="252,6,0,0"
+                    CornerRadius="4"
+                    Visibility="Collapsed"
+                    Background="Transparent" BorderBrush="Transparent"
+                    Padding="0"
+                    Click="PaneThemeToggleButton_Click" ToolTipService.ToolTip="切换主题">
+                <FontIcon x:Name="PaneThemeToggleIcon" Glyph="&#xE706;" FontSize="16"/>
             </Button>
 
             <!-- Drag region for custom title bar -->

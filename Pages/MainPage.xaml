@@ -33,6 +33,11 @@
                                 <FontIcon Glyph="&#xE70F;"/>
                             </MenuFlyoutItem.Icon>
                         </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="分享 / 复制链接" Click="ShareMenu_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE72D;"/>
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
                         <MenuFlyoutItem Text="删除" Click="DeleteMenu_Click">
                             <MenuFlyoutItem.Icon>
                                 <FontIcon Glyph="&#xE74D;"/>
@@ -176,7 +181,7 @@
                 </SplitView.Content>
 
                 <SplitView.Pane>
-                    <Grid x:Name="SidebarPaneGrid" Margin="0,28,0,0" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
+                    <Grid x:Name="SidebarPaneGrid" Margin="0,40,0,0" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>

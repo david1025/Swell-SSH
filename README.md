@@ -8,10 +8,10 @@
 
 **SwellSSH** 是一款为 Windows 11 打造的现代 SSH 客户端，使用 WinUI 3 原生框架与 Win2D GPU 加速渲染构建，提供流畅、美观的终端体验。
 
-![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4?logo=windows)
-![framework](https://img.shields.io/badge/framework-.NET%2010%20%7C%20WinUI%203-512bd4?logo=dotnet)
-![license](https://img.shields.io/github/license/yaog6700-bit/Swell-SSH)
-![release](https://img.shields.io/github/v/release/yaog6700-bit/Swell-SSH)
+![IqDWPtqrpMWjai0lnY0qWXPvMjkMLzXj.webp](https://cdn.nodeimage.com/i/IqDWPtqrpMWjai0lnY0qWXPvMjkMLzXj.webp)
+![i9sRwSIGpvsImhF29ilqHT2KlLAYj6Xp.webp](https://cdn.nodeimage.com/i/i9sRwSIGpvsImhF29ilqHT2KlLAYj6Xp.webp)
+![qbNLXwdp3TyQBhB7JUyKL2DYV9JXaGiy.webp](https://cdn.nodeimage.com/i/qbNLXwdp3TyQBhB7JUyKL2DYV9JXaGiy.webp)
+![kWdfLFU5mSlZfElbFcybet19To0aFo14.webp](https://cdn.nodeimage.com/i/kWdfLFU5mSlZfElbFcybet19To0aFo14.webp)
 
 ---
 

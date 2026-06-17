@@ -164,6 +164,14 @@ namespace SwellSSH.Terminal
             Color.FromArgb(255, 0x92, 0x83, 0x74), Color.FromArgb(255, 0xfb, 0x49, 0x34), Color.FromArgb(255, 0xb8, 0xbb, 0x26), Color.FromArgb(255, 0xfa, 0xbd, 0x2f),
             Color.FromArgb(255, 0x83, 0xa5, 0x98), Color.FromArgb(255, 0xd3, 0x86, 0x9b), Color.FromArgb(255, 0x8e, 0xc0, 0x7c), Color.FromArgb(255, 0xeb, 0xdb, 0xb2)
         };
+        // Green Screen (Phosphor Display)
+        private static readonly Color[] GreenScreenColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0xaa, 0xff), Color.FromArgb(255, 0xff, 0x69, 0xb4), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0x33, 0x00), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0xaa, 0xff), Color.FromArgb(255, 0xff, 0x69, 0xb4), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68)
+        };
         // Ayu Dark
         private static readonly Color[] AyuDarkColors = new Color[16]
         {
@@ -431,6 +439,14 @@ namespace SwellSSH.Terminal
                 _ansiColors = GruvboxDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x50, 0x49, 0x45);
                 _cursorColor = Color.FromArgb(255, 0xeb, 0xdb, 0xb2);
+            }
+            else if (settings.ColorScheme == "Green Screen")
+            {
+                _defaultBg = Color.FromArgb(255, 0x0d, 0x11, 0x17);
+                _defaultFg = Color.FromArgb(255, 0x21, 0xb5, 0x68);
+                _ansiColors = GreenScreenColors;
+                _selectionBg = Color.FromArgb(255, 0x00, 0x3b, 0x00);
+                _cursorColor = Color.FromArgb(255, 0x21, 0xb5, 0x68);
             }
             else if (settings.ColorScheme == "Ayu Dark")
             {

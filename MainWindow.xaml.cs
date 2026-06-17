@@ -188,9 +188,9 @@ namespace SwellSSH
                 ShowOnboarding();
             }
 
-            var theme = settings.ColorScheme == "Default Light"
+            var theme = settings.AppTheme == "Light"
                 ? ElementTheme.Light
-                : settings.ColorScheme == "System" 
+                : settings.AppTheme == "System" 
                     ? ElementTheme.Default 
                     : ElementTheme.Dark;
 
@@ -315,7 +315,7 @@ namespace SwellSSH
         private async Task SaveThemeAsync(ElementTheme theme)
         {
             var settings = await _storage.LoadSettingsAsync();
-            settings.ColorScheme = theme == ElementTheme.Light ? "Default Light" : "One Dark";
+            settings.AppTheme = theme == ElementTheme.Light ? "Light" : "Dark";
             await _storage.SaveSettingsAsync(settings);
         }
 

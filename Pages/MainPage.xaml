@@ -183,14 +183,14 @@
                 </SplitView.Content>
 
                 <SplitView.Pane>
-                    <Grid x:Name="SidebarPaneGrid" Margin="0,28,0,0" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,0,0,0">
+                    <Grid x:Name="SidebarPaneGrid" Margin="0,28,0,0" Background="{ThemeResource SidebarBackgroundBrush}" BorderBrush="{ThemeResource SidebarBorderBrush}" BorderThickness="1,0,0,0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         
                         <!-- Top Tab Bar -->
-                        <Grid Grid.Row="0" Margin="16,16,16,8" Height="36" Background="{ThemeResource LayerFillColorAltBrush}" CornerRadius="6" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <Grid Grid.Row="0" Margin="16,16,16,8" Height="36" Background="{ThemeResource SidebarTabBarBackgroundBrush}" CornerRadius="6" BorderBrush="{ThemeResource SidebarBorderBrush}" BorderThickness="1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -199,17 +199,17 @@
                             
                             <!-- Tab 0: Snippets -->
                             <ToggleButton x:Name="TabSnippetsButton" Grid.Column="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="0">
-                                <FontIcon Glyph="&#xE943;" FontSize="14"/>
+                                <FontIcon Glyph="&#xE943;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             </ToggleButton>
 
                             <!-- Tab 1: History (Placeholder) -->
                             <ToggleButton x:Name="TabHistoryButton" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="1">
-                                <FontIcon Glyph="&#xE823;" FontSize="14"/>
+                                <FontIcon Glyph="&#xE823;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             </ToggleButton>
 
                             <!-- Tab 2: Themes -->
                             <ToggleButton x:Name="TabThemesButton" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" BorderThickness="0" Background="Transparent" CornerRadius="6" Click="SidebarTabButton_Click" Tag="2">
-                                <FontIcon Glyph="&#xE790;" FontSize="14"/>
+                                <FontIcon Glyph="&#xE790;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             </ToggleButton>
                         </Grid>
 
@@ -223,6 +223,36 @@
                                 </Grid.RowDefinitions>
                                 <Button Grid.Row="0" Content="+ 新建代码片段" Click="NewSnippetButton_Click" HorizontalAlignment="Stretch" Style="{ThemeResource AccentButtonStyle}" Margin="0,0,0,16"/>
                                 <ListView Grid.Row="1" ItemsSource="{x:Bind Snippets, Mode=OneWay}" SelectionMode="None">
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Padding" Value="8"/>
+                                            <Setter Property="Margin" Value="0,0,0,4"/>
+                                            <Setter Property="CornerRadius" Value="6"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListViewItem">
+                                                        <Border x:Name="RootBorder"
+                                                                Background="{TemplateBinding Background}"
+                                                                CornerRadius="6"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <VisualStateManager.VisualStateGroups>
+                                                                <VisualStateGroup x:Name="CommonStates">
+                                                                    <VisualState x:Name="Normal"/>
+                                                                    <VisualState x:Name="PointerOver">
+                                                                        <VisualState.Setters>
+                                                                            <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemHoverBrush}"/>
+                                                                        </VisualState.Setters>
+                                                                    </VisualState>
+                                                                </VisualStateGroup>
+                                                            </VisualStateManager.VisualStateGroups>
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate x:DataType="models:SnippetViewModel">
                                             <Grid Margin="0,8" ColumnSpacing="8">
@@ -245,8 +275,8 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <StackPanel Grid.Column="0" Spacing="4" VerticalAlignment="Center">
-                                                    <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
-                                                    <TextBlock Text="{x:Bind Command}" FontFamily="Consolas" Opacity="0.6" FontSize="12" TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{x:Bind Name}" Style="{ThemeResource BodyStrongTextBlockStyle}" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                                                    <TextBlock Text="{x:Bind Command}" FontFamily="Consolas" Opacity="0.6" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                                 </StackPanel>
                                                 <Button Grid.Column="1" VerticalAlignment="Center" Width="36" Height="36" Padding="0"
                                                         ToolTipService.ToolTip="运行代码片段" Click="RunSnippet_Click">
@@ -271,6 +301,39 @@
                                             <Setter Property="Padding" Value="8"/>
                                             <Setter Property="Margin" Value="0,0,0,4"/>
                                             <Setter Property="CornerRadius" Value="8"/>
+                                            <Setter Property="Background" Value="Transparent"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListViewItem">
+                                                        <Border x:Name="RootBorder"
+                                                                Background="{TemplateBinding Background}"
+                                                                CornerRadius="8"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <VisualStateManager.VisualStateGroups>
+                                                                <VisualStateGroup x:Name="CommonStates">
+                                                                    <VisualState x:Name="Normal"/>
+                                                                    <VisualState x:Name="PointerOver">
+                                                                        <VisualState.Setters>
+                                                                            <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemHoverBrush}"/>
+                                                                        </VisualState.Setters>
+                                                                    </VisualState>
+                                                                    <VisualState x:Name="Selected">
+                                                                        <VisualState.Setters>
+                                                                            <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemSelectedBrush}"/>
+                                                                        </VisualState.Setters>
+                                                                    </VisualState>
+                                                                    <VisualState x:Name="SelectedPointerOver">
+                                                                        <VisualState.Setters>
+                                                                            <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemSelectedBrush}"/>
+                                                                        </VisualState.Setters>
+                                                                    </VisualState>
+                                                                </VisualStateGroup>
+                                                            </VisualStateManager.VisualStateGroups>
+                                                            <ContentPresenter />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
                                         </Style>
                                     </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
@@ -281,7 +344,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <!-- Mini Terminal Preview -->
-                                                <Border Grid.Column="0" Width="60" Height="40" Background="{x:Bind BgBrush}" CornerRadius="6" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" Padding="6,8">
+                                                <Border Grid.Column="0" Width="60" Height="40" Background="{x:Bind BgBrush}" CornerRadius="6" BorderBrush="{ThemeResource SidebarBorderBrush}" BorderThickness="1" Padding="6,8">
                                                     <StackPanel Spacing="4">
                                                         <Rectangle Height="4" Fill="{x:Bind Accent1Brush}" RadiusX="2" RadiusY="2" HorizontalAlignment="Left" Width="40"/>
                                                         <Rectangle Height="4" Fill="{x:Bind Accent2Brush}" RadiusX="2" RadiusY="2" HorizontalAlignment="Left" Width="30"/>
@@ -289,7 +352,7 @@
                                                     </StackPanel>
                                                 </Border>
                                                 <!-- Theme Name -->
-                                                <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" Style="{ThemeResource BodyTextBlockStyle}"/>
+                                                <TextBlock Grid.Column="1" Text="{x:Bind Name}" VerticalAlignment="Center" Style="{ThemeResource BodyTextBlockStyle}" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
@@ -299,13 +362,13 @@
                     </Grid>
                 </SplitView.Pane>
             </SplitView>
-            <!-- ── Settings Pane (Right side full coverage) ────────────────── -->
-            <Grid x:Name="SettingsPaneHost" Visibility="Collapsed" Background="Transparent" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0">
+            <!-- ─ Settings Pane (Right side full coverage) ────────────────── -->
+            <Grid x:Name="SettingsPaneHost" Visibility="Collapsed" Background="{ThemeResource SidebarBackgroundBrush}" BorderBrush="{ThemeResource SidebarBorderBrush}" BorderThickness="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <Grid x:Name="RightSettingsHeader" Padding="24,0,24,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                <Grid x:Name="RightSettingsHeader" Padding="24,0,24,0" BorderBrush="{ThemeResource SidebarBorderBrush}" BorderThickness="0,0,0,1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>

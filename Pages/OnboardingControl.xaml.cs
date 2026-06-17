@@ -126,8 +126,8 @@ namespace SwellSSH.Pages
             // 保存个性化设置
             if (ThemeSegmented.SelectedItem is CommunityToolkit.WinUI.Controls.SegmentedItem themeItem && themeItem.Tag is string themeStr)
             {
-                if (themeStr == "Light") _settings.ColorScheme = "Default Light";
-                else if (themeStr == "Dark") _settings.ColorScheme = "One Dark";
+                if (themeStr == "Light") { _settings.AppTheme = "Light"; _settings.ColorScheme = "Default Light"; }
+                else if (themeStr == "Dark") { _settings.AppTheme = "Dark"; _settings.ColorScheme = "One Dark"; }
             }
             
             if (BackdropSegmented.SelectedItem is CommunityToolkit.WinUI.Controls.SegmentedItem backdropItem && backdropItem.Tag is string backdropStr)
@@ -167,9 +167,9 @@ namespace SwellSSH.Pages
             if (_isInitializing) return;
             if (ThemeSegmented.SelectedItem is CommunityToolkit.WinUI.Controls.SegmentedItem themeItem && themeItem.Tag is string themeStr)
             {
-                if (themeStr == "Light") _settings.ColorScheme = "Default Light";
-                else if (themeStr == "Dark") _settings.ColorScheme = "One Dark";
-                else _settings.ColorScheme = "System";
+                if (themeStr == "Light") { _settings.AppTheme = "Light"; _settings.ColorScheme = "Default Light"; }
+                else if (themeStr == "Dark") { _settings.AppTheme = "Dark"; _settings.ColorScheme = "One Dark"; }
+                else { _settings.AppTheme = "System"; _settings.ColorScheme = "System"; }
                 
                 await _storage.SaveSettingsAsync(_settings);
                 if (MainWindow.Instance != null) await MainWindow.Instance.ApplySavedSettingsAsync();

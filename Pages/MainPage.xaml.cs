@@ -283,21 +283,11 @@ namespace SwellSSH.Pages
             }
         }
 
-        private async void OnThemeChanged(ElementTheme newTheme)
+        private void OnThemeChanged(ElementTheme newTheme)
         {
-            var settings = await _storage.LoadSettingsAsync();
-            // Explicitly set the color scheme because the file might not be saved yet
-            settings.ColorScheme = newTheme == ElementTheme.Light ? "Default Light" : "One Dark";
-            
-            foreach (TabViewItem tab in TerminalTabView.TabItems)
-            {
-                if (tab.Content is Grid grid && grid.Children.FirstOrDefault(c => c is TerminalView) is TerminalView terminalView)
-                {
-                    terminalView.ApplySettings(settings);
-                }
-            }
-
-            SyncThemeMenuCheckedState(settings.ColorScheme);
+            // Do NOT override terminal color scheme when switching dark/light mode.
+            // The terminal theme is controlled exclusively by the right sidebar theme picker.
+            // Only sync the sidebar theme list check state without changing the terminal colors.
         }
 
         private async Task LoadConnectionsAsync()

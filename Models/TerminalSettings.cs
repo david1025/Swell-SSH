@@ -29,6 +29,9 @@ namespace SwellSSH.Models
 
         public bool OnboardingCompleted { get; set; } = false;
 
+        /// <summary>App-level theme: Dark | Light | System (independent from terminal ColorScheme)</summary>
+        public string AppTheme { get; set; } = "Dark";
+
         public static event System.Action<TerminalSettings>? GlobalSettingsChanged;
         public static void NotifyGlobalSettingsChanged(TerminalSettings settings)
         {

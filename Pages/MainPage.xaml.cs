@@ -177,7 +177,10 @@ namespace SwellSSH.Pages
             _ = LoadSnippetsAsync();
             
             // Set initial Sidebar Tab
-            SidebarTabButton_Click(TabSftpButton, new RoutedEventArgs());
+            SidebarTabButton_Click(TabSnippetsButton, new RoutedEventArgs());
+
+            // Hook tab selection changed to update sidebar toggle button state
+            TerminalTabView.SelectionChanged += TerminalTabView_SelectionChanged;
 
             this.Unloaded += (_, _) =>
             {
@@ -283,21 +286,11 @@ namespace SwellSSH.Pages
             }
         }
 
-        private async void OnThemeChanged(ElementTheme newTheme)
+        private void OnThemeChanged(ElementTheme newTheme)
         {
-            var settings = await _storage.LoadSettingsAsync();
-            // Explicitly set the color scheme because the file might not be saved yet
-            settings.ColorScheme = newTheme == ElementTheme.Light ? "Default Light" : "One Dark";
-            
-            foreach (TabViewItem tab in TerminalTabView.TabItems)
-            {
-                if (tab.Content is Grid grid && grid.Children.FirstOrDefault(c => c is TerminalView) is TerminalView terminalView)
-                {
-                    terminalView.ApplySettings(settings);
-                }
-            }
-
-            SyncThemeMenuCheckedState(settings.ColorScheme);
+            // Do NOT override terminal color scheme when switching dark/light mode.
+            // The terminal theme is controlled exclusively by the right sidebar theme picker.
+            // Only sync the sidebar theme list check state without changing the terminal colors.
         }
 
         private async Task LoadConnectionsAsync()
@@ -511,6 +504,42 @@ namespace SwellSSH.Pages
         private void EmptyOpenConnectionsButton_Click(object sender, RoutedEventArgs e)
         {
             MainWindow.Instance?.OpenConnectionsPane();
+        }
+
+        private async void EmptyNewSftpButton_Click(object sender, RoutedEventArgs e)
+        {
+            await OpenSftpTabAsync();
+        }
+
+        public async Task OpenSftpTabAsync()
+        {
+            var sftpPage = new SftpPage();
+            var tab = new TabViewItem
+            {
+                Header = "SFTP",
+                IconSource = new FontIconSource { Glyph = "\uE8B7" },
+                Content = sftpPage,
+                Tag = "sftp"
+            };
+
+            var flyout = new MenuFlyout();
+            var closeItem = new MenuFlyoutItem { Text = "关闭标签" };
+            closeItem.Click += (_, _) => CloseTab(tab);
+            flyout.Items.Add(closeItem);
+            tab.ContextFlyout = flyout;
+
+            TerminalTabView.TabItems.Add(tab);
+            TerminalTabView.SelectedItem = tab;
+            UpdateEmptyState();
+
+            // Wait for the SftpPage to be loaded into the visual tree so that
+            // its XamlRoot is available for ContentDialog.ShowAsync().
+            var loadedTcs = new TaskCompletionSource();
+            sftpPage.Loaded += (_, _) => loadedTcs.TrySetResult();
+            if (sftpPage.IsLoaded) loadedTcs.TrySetResult();
+            await loadedTcs.Task;
+
+            await sftpPage.OpenRemoteSessionFromPickerAsync();
         }
 
         private async void ToggleFavoriteMenu_Click(object sender, RoutedEventArgs e)
@@ -760,6 +789,7 @@ namespace SwellSSH.Pages
             Themes.Add(new ThemeViewModel { Name = "Dracula", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x2a, 0x36)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf8, 0xf8, 0xf2)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x55, 0x55)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x50, 0xfa, 0x7b)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x61, 0xbf, 0xff)) });
             Themes.Add(new ThemeViewModel { Name = "Flexoki Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x10, 0x0f, 0x0f)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xce, 0xcd, 0xc3)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xaf, 0x30, 0x29)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x66, 0x80, 0x0b)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x20, 0x5e, 0xa6)) });
             Themes.Add(new ThemeViewModel { Name = "Gruvbox Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x28, 0x28, 0x28)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xeb, 0xdb, 0xb2)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xcc, 0x24, 0x1d)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x98, 0x97, 0x1a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x45, 0x85, 0x88)) });
+            Themes.Add(new ThemeViewModel { Name = "Green Screen", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x0d, 0x11, 0x17)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x21, 0xb5, 0x68)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x21, 0xb5, 0x68)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0xaa, 0xff)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x69, 0xb4)) });
             Themes.Add(new ThemeViewModel { Name = "Hacker Green", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x0d, 0x02, 0x08)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0xff, 0x41)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x00, 0x00)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0xff, 0x41)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x00, 0x5f, 0x00)) });
             Themes.Add(new ThemeViewModel { Name = "Kanagawa Wave", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1f, 0x1f, 0x28)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xdc, 0xd7, 0xba)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc3, 0x40, 0x43)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x76, 0x94, 0x6a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x7e, 0x9c, 0xd8)) });
             Themes.Add(new ThemeViewModel { Name = "Material Dark", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x26, 0x32, 0x38)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xee, 0xff, 0xff)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf0, 0x71, 0x78)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc3, 0xe8, 0x8d)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x82, 0xb1, 0xff)) });
@@ -904,17 +934,14 @@ namespace SwellSSH.Pages
             if (sender is ToggleButton btn && btn.Tag is string tag)
             {
                 // Reset all
-                TabSftpButton.IsChecked = false;
                 TabSnippetsButton.IsChecked = false;
                 TabHistoryButton.IsChecked = false;
                 TabThemesButton.IsChecked = false;
                 
-                TabSftpButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabSnippetsButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabHistoryButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                 TabThemesButton.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
-                SidebarSftpView.Visibility = Visibility.Collapsed;
                 SidebarSnippetsView.Visibility = Visibility.Collapsed;
                 SidebarHistoryView.Visibility = Visibility.Collapsed;
                 SidebarThemesView.Visibility = Visibility.Collapsed;
@@ -925,10 +952,9 @@ namespace SwellSSH.Pages
                 
                 switch (tag)
                 {
-                    case "0": SidebarSftpView.Visibility = Visibility.Visible; break;
-                    case "1": SidebarSnippetsView.Visibility = Visibility.Visible; break;
-                    case "2": SidebarHistoryView.Visibility = Visibility.Visible; break;
-                    case "3": SidebarThemesView.Visibility = Visibility.Visible; break;
+                    case "0": SidebarSnippetsView.Visibility = Visibility.Visible; break;
+                    case "1": SidebarHistoryView.Visibility = Visibility.Visible; break;
+                    case "2": SidebarThemesView.Visibility = Visibility.Visible; break;
                 }
             }
         }
@@ -944,6 +970,29 @@ namespace SwellSSH.Pages
         public void ToggleSidebar()
         {
             TerminalSplitView.IsPaneOpen = !TerminalSplitView.IsPaneOpen;
+        }
+
+        private void TerminalTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateSidebarToggleButtonState();
+        }
+
+        /// <summary>
+        /// Enables the sidebar toggle button only when the selected tab is an SSH terminal session.
+        /// </summary>
+        private void UpdateSidebarToggleButtonState()
+        {
+            bool isSshTab = false;
+            if (TerminalTabView.SelectedItem is TabViewItem selectedTab)
+            {
+                // SSH tabs have TerminalSession as Tag; SFTP/settings tabs have string tags like "sftp"/"settings"
+                isSshTab = selectedTab.Tag is TerminalSession;
+            }
+
+            if (MainWindow.Instance != null)
+            {
+                MainWindow.Instance.SetSidebarToggleEnabled(isSshTab);
+            }
         }
 
 
@@ -1229,6 +1278,11 @@ namespace SwellSSH.Pages
                 }
             }
 
+            if (tab.Content is SftpPage sftpPage)
+            {
+                sftpPage.Dispose();
+            }
+
             TerminalTabView.TabItems.Remove(tab);
             UpdateEmptyState();
         }
@@ -1249,7 +1303,7 @@ namespace SwellSSH.Pages
                 Message = $"{profile.Username}@{profile.Host}:{profile.Port}"
             };
 
-            var tabContent = new Grid();
+            var tabContent = new Grid { Padding = new Thickness(4, 0, 4, 0) };
             tabContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             tabContent.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.SetRow(terminalView, 0);

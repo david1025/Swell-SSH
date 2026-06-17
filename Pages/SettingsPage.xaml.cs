@@ -59,7 +59,7 @@ namespace SwellSSH.Pages
             // _isLoading 已在构造函数里设为 true，这里无需重复设置
             _settings = await _storage.LoadSettingsAsync();
             
-            _appliedTheme = _settings.ColorScheme == "Default Light" ? ElementTheme.Light : ElementTheme.Dark;
+            _appliedTheme = _settings.AppTheme == "Light" ? ElementTheme.Light : ElementTheme.Dark;
             _appliedBackdropType = _settings.BackdropType;
 
             ApplyToUi(_settings);
@@ -141,13 +141,8 @@ namespace SwellSSH.Pages
 
             if (MainWindow.Instance == null) return;
 
-            // 只有 ColorScheme 真正变化时才调用 SetTheme，避免不必要的主题刷新
-            var theme = _settings.ColorScheme == "Default Light" ? ElementTheme.Light : ElementTheme.Dark;
-            if (theme != _appliedTheme)
-            {
-                _appliedTheme = theme;
-                MainWindow.Instance.SetTheme(theme);
-            }
+            // App theme (dark/light) is controlled only by the sidebar toggle, not by terminal ColorScheme.
+            // No need to sync app theme here — terminal color changes should not affect app appearance.
 
             // 只有 BackdropType 真正变化时才重建 Backdrop，
             // 否则拖动字体大小等其他设置每次都会重建亚克力，导致白闪

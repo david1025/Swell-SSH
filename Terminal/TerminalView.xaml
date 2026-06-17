@@ -6,6 +6,7 @@
     Loaded="UserControl_Loaded"
     Unloaded="UserControl_Unloaded"
     GettingFocus="UserControl_GettingFocus"
+    LosingFocus="UserControl_LosingFocus"
     SizeChanged="UserControl_SizeChanged"
     PointerPressed="UserControl_PointerPressed"
     PointerMoved="UserControl_PointerMoved"
@@ -15,7 +16,7 @@
     AllowFocusOnInteraction="True">
     
     <!-- We need a grid to hold the canvas so we can set a background color -->
-    <Grid x:Name="RootGrid" Background="Transparent">
+    <Grid x:Name="RootGrid" Background="#0C0C0C">
         <!-- Win2D CanvasControl for immediate mode 2D rendering -->
         <canvas:CanvasControl x:Name="Canvas"
                               Draw="Canvas_Draw"

@@ -60,14 +60,12 @@ namespace SwellSSH
             // Navigate to MainPage immediately
             ContentFrame.Navigate(typeof(MainPage));
 
+            // Sidebar toggle is disabled until an SSH tab is selected
+            GlobalToggleSidebarButton.IsEnabled = false;
+            GlobalToggleSidebarButton.Opacity = 0.4;
+
             // Pane open/close → sync connection list data
-            MainNav.PaneOpening += (_, _) =>
-            {
-                SyncPaneConnectionList();
-                UpdateHeaderVisibility(true);
-            };
-            MainNav.PaneClosing += (_, _) => UpdateHeaderVisibility(false);
-            UpdateHeaderVisibility(false, animate: false);
+            MainNav.PaneOpening += (_, _) => SyncPaneConnectionList();
 
             // Navigation
             MainNav.SelectionChanged += MainNav_SelectionChanged;
@@ -79,11 +77,7 @@ namespace SwellSSH
         private void ConfigureTitleBarHitTesting()
         {
             ContentWrapper.SizeChanged += (_, _) => UpdateTitleBarDragRegions();
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                UpdateTitleBarDragRegions();
-                UpdateThemeIcon();
-            });
+            DispatcherQueue.TryEnqueue(UpdateTitleBarDragRegions);
         }
 
         public void SetTitleBarPassthroughRects(IEnumerable<Windows.Foundation.Rect> rects)
@@ -101,7 +95,7 @@ namespace SwellSSH
             var scale = ContentWrapper.XamlRoot.RasterizationScale;
             const double titleBarHeight = 48;
             const double leftReserved = 88;
-            const double rightReserved = 184; // 140 system buttons + 36 theme button + 8 gap
+            const double rightReserved = 140;
 
             var dragSegments = new List<Windows.Foundation.Rect>
             {
@@ -194,9 +188,9 @@ namespace SwellSSH
                 ShowOnboarding();
             }
 
-            var theme = settings.ColorScheme == "Default Light"
+            var theme = settings.AppTheme == "Light"
                 ? ElementTheme.Light
-                : settings.ColorScheme == "System" 
+                : settings.AppTheme == "System" 
                     ? ElementTheme.Default 
                     : ElementTheme.Dark;
 
@@ -230,6 +224,14 @@ namespace SwellSSH
             if (args.SelectedItemContainer is not NavigationViewItem item) return;
 
             string? tag = item.Tag?.ToString();
+
+            if (tag == "theme_toggle")
+            {
+                _ = ToggleThemeAsync(ThemeToggleNavItem);
+                // Deselect immediately since this is a toggle action, not a page nav
+                MainNav.SelectedItem = null;
+                return;
+            }
 
             if (tag == "settings")
             {
@@ -274,7 +276,6 @@ namespace SwellSSH
             if (this.Content is FrameworkElement root)
                 root.RequestedTheme = theme;
             UpdateTitleBarButtonColors();
-            UpdateThemeIcon();
             ThemeChanged?.Invoke(theme);
         }
 
@@ -314,56 +315,11 @@ namespace SwellSSH
         private async Task SaveThemeAsync(ElementTheme theme)
         {
             var settings = await _storage.LoadSettingsAsync();
-            settings.ColorScheme = theme == ElementTheme.Light ? "Default Light" : "One Dark";
+            settings.AppTheme = theme == ElementTheme.Light ? "Light" : "Dark";
             await _storage.SaveSettingsAsync(settings);
         }
 
 
-
-        private void FadeVisual(UIElement element, float targetOpacity, double durationMs)
-        {
-            if (element == null) return;
-
-            if (targetOpacity > 0f)
-            {
-                element.Visibility = Visibility.Visible;
-            }
-
-            var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(element);
-            var compositor = visual.Compositor;
-
-            var animation = compositor.CreateScalarKeyFrameAnimation();
-            animation.InsertKeyFrame(1f, targetOpacity);
-            animation.Duration = TimeSpan.FromMilliseconds(durationMs);
-
-            var batch = compositor.CreateScopedBatch(Microsoft.UI.Composition.CompositionBatchTypes.Animation);
-            visual.StartAnimation("Opacity", animation);
-            batch.Completed += (s, e) =>
-            {
-                if (targetOpacity == 0f)
-                {
-                    element.Visibility = Visibility.Collapsed;
-                }
-            };
-            batch.End();
-        }
-
-        private void UpdateHeaderVisibility(bool isOpen, bool animate = true)
-        {
-            if (PaneThemeToggleButton != null)
-            {
-                if (animate)
-                {
-                    FadeVisual(PaneThemeToggleButton, isOpen ? 1f : 0f, 250);
-                }
-                else
-                {
-                    PaneThemeToggleButton.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
-                    var visual = Microsoft.UI.Xaml.Hosting.ElementCompositionPreview.GetElementVisual(PaneThemeToggleButton);
-                    visual.Opacity = isOpen ? 1f : 0f;
-                }
-            }
-        }
 
         // ── Pane connection list sync ────────────────────────────────────────
 
@@ -404,7 +360,28 @@ namespace SwellSSH
             }
         }
 
+        private async void PaneAddConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            await AddConnectionFromNavAsync();
+        }
 
+        private async void PaneEditConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PaneConnectionList.SelectedItem is ConnectionItemViewModel vm)
+            {
+                if (ContentFrame.Content is MainPage mainPage)
+                    await mainPage.EditProfileFromPane(vm);
+            }
+        }
+
+        private async void PaneDeleteConnectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PaneConnectionList.SelectedItem is ConnectionItemViewModel vm)
+            {
+                if (ContentFrame.Content is MainPage mainPage)
+                    await mainPage.DeleteProfileFromPane(vm);
+            }
+        }
 
         private bool _isThemeTransitioning = false;
 
@@ -416,6 +393,15 @@ namespace SwellSSH
             }
         }
 
+        /// <summary>
+        /// Called by MainPage when the active tab changes.
+        /// The sidebar toggle button is enabled only when an SSH terminal tab is selected.
+        /// </summary>
+        public void SetSidebarToggleEnabled(bool enabled)
+        {
+            GlobalToggleSidebarButton.IsEnabled = enabled;
+            GlobalToggleSidebarButton.Opacity = enabled ? 1.0 : 0.4;
+        }
 
         public void OpenConnectionsPane()
         {
@@ -423,19 +409,21 @@ namespace SwellSSH
             MainNav.IsPaneOpen = true;
         }
 
-        private async void PaneThemeToggleButton_Click(object sender, RoutedEventArgs e)
+        public async Task AddConnectionFromNavAsync()
         {
-            await ToggleThemeAsync(PaneThemeToggleButton);
+            if (ContentFrame.Content is MainPage mainPage)
+            {
+                await mainPage.AddConnectionFromPane();
+                SyncPaneConnectionList();
+                MainNav.IsPaneOpen = true;
+            }
         }
 
-        /// <summary>Updates the theme button icon to reflect the CURRENT theme
-        /// (shows sun ☀ in dark mode, moon 🌙 in light mode, so the icon hints at the next state).</summary>
-        private void UpdateThemeIcon()
+        private async void ThemeToggleNavItem_Tapped(object sender, TappedRoutedEventArgs e)
         {
-            // E706 = Brightness/Sun, E708 = Night/Moon
-            var glyph = GetActualTheme() == ElementTheme.Dark ? "\uE706" : "\uE708";
-            if (PaneThemeToggleIcon != null)
-                PaneThemeToggleIcon.Glyph = glyph;
+            e.Handled = true;
+            MainNav.SelectedItem = null;
+            await ToggleThemeAsync(ThemeToggleNavItem);
         }
 
         private void SettingsNavItem_Tapped(object sender, TappedRoutedEventArgs e)
@@ -453,6 +441,18 @@ namespace SwellSSH
 
             MainNav.SelectedItem = null;
             MainNav.IsPaneOpen = false;
+        }
+
+        private async void SftpNavItem_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            MainNav.SelectedItem = null;
+            MainNav.IsPaneOpen = false;
+
+            if (ContentFrame.Content is MainPage mainPage)
+            {
+                await mainPage.OpenSftpTabAsync();
+            }
         }
 
         public async Task ToggleThemeAsync(UIElement? sourceElement = null)
@@ -559,6 +559,16 @@ namespace SwellSSH
         }
 
         // ── Nav icon hover animations (ported from AnywhereWinUI) ────────────
+
+        // Theme toggle: Scale pulse
+        private void ThemeToggleNavItem_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            AnimateNavIconScale(ThemeToggleIcon, 1.22f, 300);
+        }
+        private void ThemeToggleNavItem_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            AnimateNavIconScale(ThemeToggleIcon, 1f, 250);
+        }
 
         // Settings: Gear 180° spin
         private void SettingsNavItem_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)

@@ -32,6 +32,7 @@ namespace SwellSSH.Terminal
         private Color _defaultBg = Color.FromArgb(255, 12, 12, 12);
         private Color _defaultFg = Color.FromArgb(255, 204, 204, 204);
         private Color _selectionBg = Color.FromArgb(255, 38, 79, 120);
+        private Color _cursorColor = Color.FromArgb(255, 204, 204, 204);
         
         // Light theme ANSI colors — all tuned for contrast on #FAFAFA background
         private static readonly Color[] LightStandardColors = new Color[16]
@@ -162,6 +163,14 @@ namespace SwellSSH.Terminal
             Color.FromArgb(255, 0x45, 0x85, 0x88), Color.FromArgb(255, 0xb1, 0x62, 0x86), Color.FromArgb(255, 0x68, 0x9d, 0x6a), Color.FromArgb(255, 0xa8, 0x99, 0x84),
             Color.FromArgb(255, 0x92, 0x83, 0x74), Color.FromArgb(255, 0xfb, 0x49, 0x34), Color.FromArgb(255, 0xb8, 0xbb, 0x26), Color.FromArgb(255, 0xfa, 0xbd, 0x2f),
             Color.FromArgb(255, 0x83, 0xa5, 0x98), Color.FromArgb(255, 0xd3, 0x86, 0x9b), Color.FromArgb(255, 0x8e, 0xc0, 0x7c), Color.FromArgb(255, 0xeb, 0xdb, 0xb2)
+        };
+        // Green Screen (Phosphor Display)
+        private static readonly Color[] GreenScreenColors = new Color[16]
+        {
+            Color.FromArgb(255, 0x00, 0x00, 0x00), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0xaa, 0xff), Color.FromArgb(255, 0xff, 0x69, 0xb4), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0x33, 0x00), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68),
+            Color.FromArgb(255, 0x00, 0xaa, 0xff), Color.FromArgb(255, 0xff, 0x69, 0xb4), Color.FromArgb(255, 0x21, 0xb5, 0x68), Color.FromArgb(255, 0x21, 0xb5, 0x68)
         };
         // Ayu Dark
         private static readonly Color[] AyuDarkColors = new Color[16]
@@ -341,6 +350,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 50, 50, 50);
                 _ansiColors = LightStandardColors;
                 _selectionBg = Color.FromArgb(255, 204, 232, 255);
+                _cursorColor = Color.FromArgb(255, 50, 50, 50);
             }
             else if (settings.ColorScheme == "Termark Dark")
             {
@@ -348,6 +358,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xe6, 0xed, 0xf3);
                 _ansiColors = TermarkDarkColors;
                 _selectionBg = Color.FromArgb(0x33, 0x92, 0xff, 0x44);
+                _cursorColor = Color.FromArgb(255, 0xe6, 0xed, 0xf3);
             }
             else if (settings.ColorScheme == "Flexoki Dark")
             {
@@ -355,6 +366,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xce, 0xcd, 0xc3);
                 _ansiColors = FlexokiDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x28, 0x27, 0x26);
+                _cursorColor = Color.FromArgb(255, 0xce, 0xcd, 0xc3);
             }
             else if (settings.ColorScheme == "Kanagawa Wave")
             {
@@ -362,6 +374,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xdc, 0xd7, 0xba);
                 _ansiColors = KanagawaWaveColors;
                 _selectionBg = Color.FromArgb(255, 0x2d, 0x4f, 0x67);
+                _cursorColor = Color.FromArgb(255, 0xdc, 0xd7, 0xba);
             }
             else if (settings.ColorScheme == "Night Owl")
             {
@@ -369,6 +382,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xd6, 0xde, 0xeb);
                 _ansiColors = NightOwlColors;
                 _selectionBg = Color.FromArgb(255, 0x1d, 0x3b, 0x53);
+                _cursorColor = Color.FromArgb(255, 0xd6, 0xde, 0xeb);
             }
             else if (settings.ColorScheme == "Hacker Green")
             {
@@ -376,6 +390,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0x00, 0xff, 0x41);
                 _ansiColors = HackerGreenColors;
                 _selectionBg = Color.FromArgb(255, 0x00, 0x3b, 0x00);
+                _cursorColor = Color.FromArgb(255, 0x00, 0xff, 0x41);
             }
             else if (settings.ColorScheme == "Cyberpunk")
             {
@@ -383,6 +398,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xff, 0x00, 0x6e);
                 _ansiColors = CyberpunkColors;
                 _selectionBg = Color.FromArgb(255, 0x3a, 0x0c, 0xa3);
+                _cursorColor = Color.FromArgb(255, 0xff, 0x00, 0x6e);
             }
             else if (settings.ColorScheme == "Cobalt2")
             {
@@ -390,6 +406,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xff, 0xff, 0xff);
                 _ansiColors = Cobalt2Colors;
                 _selectionBg = Color.FromArgb(255, 0x1e, 0x3c, 0x41);
+                _cursorColor = Color.FromArgb(255, 0xff, 0xbe, 0x0b);
             }
             else if (settings.ColorScheme == "Rose Pine")
             {
@@ -397,6 +414,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xe0, 0xde, 0xf4);
                 _ansiColors = RosePineColors;
                 _selectionBg = Color.FromArgb(255, 0x40, 0x3d, 0x52);
+                _cursorColor = Color.FromArgb(255, 0xe0, 0xde, 0xf4);
             }
             else if (settings.ColorScheme == "Catppuccin Mocha")
             {
@@ -404,6 +422,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xcd, 0xd6, 0xf4);
                 _ansiColors = CatppuccinMochaColors;
                 _selectionBg = Color.FromArgb(255, 0x31, 0x32, 0x44);
+                _cursorColor = Color.FromArgb(255, 0xf5, 0xc2, 0xde);
             }
             else if (settings.ColorScheme == "Tokyo Night")
             {
@@ -411,6 +430,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xc0, 0xca, 0xf5);
                 _ansiColors = TokyoNightColors;
                 _selectionBg = Color.FromArgb(255, 0x33, 0x46, 0x7c);
+                _cursorColor = Color.FromArgb(255, 0xc0, 0xca, 0xf5);
             }
             else if (settings.ColorScheme == "Gruvbox Dark")
             {
@@ -418,6 +438,15 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xeb, 0xdb, 0xb2);
                 _ansiColors = GruvboxDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x50, 0x49, 0x45);
+                _cursorColor = Color.FromArgb(255, 0xeb, 0xdb, 0xb2);
+            }
+            else if (settings.ColorScheme == "Green Screen")
+            {
+                _defaultBg = Color.FromArgb(255, 0x0d, 0x11, 0x17);
+                _defaultFg = Color.FromArgb(255, 0x21, 0xb5, 0x68);
+                _ansiColors = GreenScreenColors;
+                _selectionBg = Color.FromArgb(255, 0x00, 0x3b, 0x00);
+                _cursorColor = Color.FromArgb(255, 0x21, 0xb5, 0x68);
             }
             else if (settings.ColorScheme == "Ayu Dark")
             {
@@ -425,6 +454,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xe6, 0xe1, 0xcf);
                 _ansiColors = AyuDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x1f, 0x24, 0x30);
+                _cursorColor = Color.FromArgb(255, 0xff, 0xb4, 0x54);
             }
             else if (settings.ColorScheme == "Material Dark")
             {
@@ -432,6 +462,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xee, 0xff, 0xff);
                 _ansiColors = MaterialDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x37, 0x47, 0x4f);
+                _cursorColor = Color.FromArgb(255, 0xee, 0xff, 0xff);
             }
             else if (settings.ColorScheme == "Atom One Dark")
             {
@@ -439,6 +470,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xab, 0xb2, 0xbf);
                 _ansiColors = AtomOneDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x3e, 0x44, 0x51);
+                _cursorColor = Color.FromArgb(255, 0x56, 0xb6, 0xc2);
             }
             else if (settings.ColorScheme == "Solarized Dark")
             {
@@ -446,6 +478,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0x83, 0x94, 0x96);
                 _ansiColors = SolarizedDarkColors;
                 _selectionBg = Color.FromArgb(255, 0x07, 0x36, 0x42);
+                _cursorColor = Color.FromArgb(255, 0x93, 0xa1, 0xa1);
             }
             else if (settings.ColorScheme == "Dracula")
             {
@@ -453,6 +486,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
                 _ansiColors = DraculaColors;
                 _selectionBg = Color.FromArgb(255, 0x44, 0x47, 0x5a);
+                _cursorColor = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
             }
             else if (settings.ColorScheme == "Monokai")
             {
@@ -460,6 +494,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
                 _ansiColors = MonokaiColors;
                 _selectionBg = Color.FromArgb(255, 0x49, 0x48, 0x3e);
+                _cursorColor = Color.FromArgb(255, 0xf8, 0xf8, 0xf2);
             }
             else if (settings.ColorScheme == "Nord")
             {
@@ -467,6 +502,7 @@ namespace SwellSSH.Terminal
                 _defaultFg = Color.FromArgb(255, 0xd8, 0xde, 0xe9);
                 _ansiColors = NordColors;
                 _selectionBg = Color.FromArgb(255, 0x43, 0x4c, 0x5e);
+                _cursorColor = Color.FromArgb(255, 0x88, 0xc0, 0xd0);
             }
 
 else if (settings.ColorScheme == "Termark Light")
@@ -475,6 +511,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x1f, 0x23, 0x28);
                 _ansiColors = TermarkLightColors;
                 _selectionBg = Color.FromArgb(0x33, 0x09, 0x69, 0xda);
+                _cursorColor = Color.FromArgb(255, 0x1f, 0x23, 0x28);
             }
             else if (settings.ColorScheme == "Rose Pine Dawn")
             {
@@ -482,6 +519,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x57, 0x52, 0x79);
                 _ansiColors = RosePineDawnColors;
                 _selectionBg = Color.FromArgb(255, 0xf2, 0xe9, 0xe1);
+                _cursorColor = Color.FromArgb(255, 0x57, 0x52, 0x79);
             }
             else if (settings.ColorScheme == "Catppuccin Latte")
             {
@@ -489,6 +527,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x4c, 0x4f, 0x69);
                 _ansiColors = CatppuccinLatteColors;
                 _selectionBg = Color.FromArgb(255, 0xe6, 0xe9, 0xef);
+                _cursorColor = Color.FromArgb(255, 0xdc, 0x8a, 0x78);
             }
             else if (settings.ColorScheme == "Tokyo Day")
             {
@@ -496,6 +535,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x37, 0x60, 0xbf);
                 _ansiColors = TokyoDayColors;
                 _selectionBg = Color.FromArgb(255, 0xe5, 0xe1, 0xed);
+                _cursorColor = Color.FromArgb(255, 0x37, 0x60, 0xbf);
             }
             else if (settings.ColorScheme == "Gruvbox Light")
             {
@@ -503,6 +543,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x3c, 0x38, 0x36);
                 _ansiColors = GruvboxLightColors;
                 _selectionBg = Color.FromArgb(255, 0xf2, 0xe5, 0xbc);
+                _cursorColor = Color.FromArgb(255, 0x3c, 0x38, 0x36);
             }
             else if (settings.ColorScheme == "Ayu Light")
             {
@@ -510,6 +551,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x5c, 0x67, 0x73);
                 _ansiColors = AyuLightColors;
                 _selectionBg = Color.FromArgb(255, 0xf0, 0xee, 0xe4);
+                _cursorColor = Color.FromArgb(255, 0xff, 0xb4, 0x54);
             }
             else if (settings.ColorScheme == "Material Light")
             {
@@ -517,6 +559,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x26, 0x32, 0x38);
                 _ansiColors = MaterialLightColors;
                 _selectionBg = Color.FromArgb(255, 0xee, 0xeb, 0xee);
+                _cursorColor = Color.FromArgb(255, 0x26, 0x32, 0x38);
             }
             else if (settings.ColorScheme == "Atom One Light")
             {
@@ -524,6 +567,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x38, 0x3a, 0x42);
                 _ansiColors = AtomOneLightColors;
                 _selectionBg = Color.FromArgb(255, 0xe5, 0xeb, 0xf1);
+                _cursorColor = Color.FromArgb(255, 0x38, 0x3a, 0x42);
             }
             else if (settings.ColorScheme == "Solarized Light")
             {
@@ -531,6 +575,7 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 0x65, 0x7b, 0x83);
                 _ansiColors = SolarizedLightColors;
                 _selectionBg = Color.FromArgb(255, 0xee, 0xe8, 0xd5);
+                _cursorColor = Color.FromArgb(255, 0x58, 0x6e, 0x75);
             }
             else // One Dark / Default
             {
@@ -538,14 +583,16 @@ else if (settings.ColorScheme == "Termark Light")
                 _defaultFg = Color.FromArgb(255, 204, 204, 204);
                 _ansiColors = DarkStandardColors;
                 _selectionBg = Color.FromArgb(255, 38, 79, 120);
+                _cursorColor = Color.FromArgb(255, 204, 204, 204);
             }
-            // _defaultBg stays fully opaque — used only for cursor inversion & color math.
-            // The canvas itself is kept transparent so the window's Mica/Acrylic backdrop
-            // shows through terminal empty cells, making the terminal blend with the UI.
+            // Apply the theme's background color as the solid canvas background
+            // so the terminal is NOT affected by app-level dark/light mode switching.
+            // The terminal appearance is controlled exclusively by the sidebar theme picker.
             if (Canvas != null && Canvas.ReadyToDraw)
             {
-                Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
-                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent); // transparent — let Mica show through
+                Canvas.ClearColor = _defaultBg;
+                RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                    Windows.UI.Color.FromArgb(_defaultBg.A, _defaultBg.R, _defaultBg.G, _defaultBg.B));
                 UpdateFont();
             }
             
@@ -631,17 +678,18 @@ else if (settings.ColorScheme == "Termark Light")
 
             _textFormat = new CanvasTextFormat
             {
-                FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Cascadia Mono, Consolas" : _settings.FontFamily,
+                FontFamily = string.IsNullOrEmpty(_settings?.FontFamily) ? "Consolas" : _settings.FontFamily,
                 FontSize = (float)(_settings?.FontSize ?? 16),
                 WordWrapping = CanvasWordWrapping.NoWrap,
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
 
-            // Keep canvas transparent so the Mica/Acrylic backdrop shows through.
-            // _defaultBg is used only as a reference for cursor/text rendering, not as fill.
-            Canvas.ClearColor = Microsoft.UI.Colors.Transparent;
-            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            // Apply solid background color from the selected terminal theme.
+            // This isolates the terminal from app-level dark/light mode changes.
+            Canvas.ClearColor = _defaultBg;
+            RootGrid.Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(
+                Windows.UI.Color.FromArgb(_defaultBg.A, _defaultBg.R, _defaultBg.G, _defaultBg.B));
 
             // Use a 20-char string to average out any left/right layout padding.
             // This gives the most accurate per-character advance width for col calculation.
@@ -656,7 +704,7 @@ else if (settings.ColorScheme == "Termark Light")
             _charHeight = longLayout.LineSpacing;
             if (_charHeight <= 0) _charHeight = longLayout.LayoutBounds.Height;
             if (_charHeight <= 0) _charHeight = 16;
-            // Removed Math.Ceiling to prevent artificial vertical gaps between lines for box drawing characters
+            _charHeight = Math.Ceiling(_charHeight);
 
             if (Canvas.ActualWidth > 0 && Canvas.ActualHeight > 0)
             {
@@ -763,7 +811,6 @@ else if (settings.ColorScheme == "Termark Light")
                     TerminalCell currentAttr = row.Cells[0];
                     textChunk.Clear();
                     int chunkLogicalWidth = 0;
-                    bool chunkHasNonAscii = false;
 
                     for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
                     {
@@ -782,31 +829,33 @@ else if (settings.ColorScheme == "Termark Light")
                                 DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                                 textChunk.Clear();
                                 chunkLogicalWidth = 0;
-                                chunkHasNonAscii = false;
                             }
                             
                             var invertedAttr = cell;
                             invertedAttr.FgColor = (uint)((_defaultBg.A << 24) | (_defaultBg.R << 16) | (_defaultBg.G << 8) | _defaultBg.B);
                             
-                            string cursorText = cell.Char == '\0' ? "" : cell.Char.ToString();
+                            string cursorText = cell.Char == '\0' ? " " : cell.Char.ToString();
 
                             if (_settings.CursorStyle == "Underline")
                             {
-                                ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
-                                            (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _defaultFg, 2);
                                 DrawChunk(ds, cursorText, x, y, cell, 1);
+                                ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
+                                            (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _cursorColor, 2);
                             }
                             else if (_settings.CursorStyle == "Bar")
                             {
-                                ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
-                                            (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _defaultFg, 2);
                                 DrawChunk(ds, cursorText, x, y, cell, 1);
+                                ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
+                                            (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _cursorColor, 2);
                             }
                             else
                             {
+                                // Block cursor: fill background, then draw inverted text on top
                                 ds.FillRectangle((float)(x * _charWidth), (float)(y * _charHeight),
-                                                 (float)_charWidth, (float)_charHeight, _defaultFg);
-                                DrawChunk(ds, cursorText, x, y, invertedAttr, 1);
+                                                 (float)_charWidth, (float)_charHeight, _cursorColor);
+                                // Draw the character in background (inverted) color on top of cursor block
+                                Color invertedText = Color.FromArgb(_cursorColor.A, _defaultBg.R, _defaultBg.G, _defaultBg.B);
+                                ds.DrawText(cursorText, (float)(x * _charWidth), (float)(y * _charHeight), invertedText, _textFormat);
                             }
                             
                             startX = x + 1;
@@ -814,25 +863,15 @@ else if (settings.ColorScheme == "Termark Light")
                             continue;
                         }
 
-                        bool isNewNonAscii = cell.Char > 127;
-                        bool isNormalChar = cell.Char != '\0';
-
-                        bool colorsChanged = cell.FgColor != currentAttr.FgColor || 
-                                             cell.BgColor != currentAttr.BgColor ||
-                                             cell.IsBold != currentAttr.IsBold;
-
-                        bool needBreak = colorsChanged || 
-                                         (isNormalChar && chunkHasNonAscii) || 
-                                         (isNewNonAscii && chunkLogicalWidth > 0 && !chunkHasNonAscii);
-
-                        if (needBreak)
+                        if (cell.FgColor != currentAttr.FgColor || 
+                            cell.BgColor != currentAttr.BgColor ||
+                            cell.IsBold != currentAttr.IsBold)
                         {
                             if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                             {
                                 DrawChunk(ds, textChunk.ToString(), startX, y, currentAttr, chunkLogicalWidth);
                                 textChunk.Clear();
                                 chunkLogicalWidth = 0;
-                                chunkHasNonAscii = false;
                             }
                             startX = x;
                             currentAttr = cell;
@@ -841,7 +880,6 @@ else if (settings.ColorScheme == "Termark Light")
                         if (cell.Char != '\0')
                         {
                             textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
-                            if (cell.Char > 127) chunkHasNonAscii = true;
                         }
                         chunkLogicalWidth++;
                     }
@@ -856,28 +894,24 @@ else if (settings.ColorScheme == "Termark Light")
 
         private void DrawChunk(CanvasDrawingSession ds, string text, int startX, int y, TerminalCell attr, int logicalWidth)
         {
-            if (string.IsNullOrWhiteSpace(text) && attr.BgColor == TerminalCell.DefaultBg) return;
-
             float xPos = (float)(startX * _charWidth);
             float yPos = (float)(y * _charHeight);
 
-            if (attr.BgColor != TerminalCell.DefaultBg)
-            {
-                Color bg = ParseColor(attr.BgColor, _defaultBg);
-                ds.FillRectangle(xPos, yPos, (float)(logicalWidth * _charWidth), (float)_charHeight, bg);
-            }
+            // Always fill background — use _defaultBg for cells with no explicit background.
+            // This ensures no transparent gaps and isolates the terminal from app theme changes.
+            Color bg = ParseColor(attr.BgColor, _defaultBg);
+            ds.FillRectangle(xPos, yPos, (float)(logicalWidth * _charWidth), (float)_charHeight, bg);
 
-            if (!string.IsNullOrWhiteSpace(text))
+            if (string.IsNullOrWhiteSpace(text)) return;
+
+            Color fg = ParseColor(attr.FgColor, _defaultFg);
+            
+            // Temp bold implementation: use standard text format but draw twice slightly offset
+            // Real bold needs font weight changes, but caching formats is complex for Phase 4
+            ds.DrawText(text, xPos, yPos, fg, _textFormat);
+            if (attr.IsBold)
             {
-                Color fg = ParseColor(attr.FgColor, _defaultFg);
-                
-                // Temp bold implementation: use standard text format but draw twice slightly offset
-                // Real bold needs font weight changes, but caching formats is complex for Phase 4
-                ds.DrawText(text, xPos, yPos, fg, _textFormat);
-                if (attr.IsBold)
-                {
-                    ds.DrawText(text, xPos + 0.5f, yPos, fg, _textFormat);
-                }
+                ds.DrawText(text, xPos + 0.5f, yPos, fg, _textFormat);
             }
         }
 
@@ -902,11 +936,15 @@ else if (settings.ColorScheme == "Termark Light")
             RequestRedraw(); // Show cursor
         }
 
+        private void UserControl_LosingFocus(UIElement sender, LosingFocusEventArgs args)
+        {
+            RequestRedraw(); // Hide cursor
+        }
+
 
         private void UserControl_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            // Use Programmatic focus instead of Pointer focus to forcefully grab focus from other panes
-            this.Focus(FocusState.Programmatic);
+            this.Focus(FocusState.Pointer);
             e.Handled = true;
 
             var point = e.GetCurrentPoint(this);

@@ -7,6 +7,34 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Global theme dictionaries for consistent sidebar styling -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <!-- Sidebar backgrounds - dark mode -->
+                    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="SidebarTabBarBackgroundBrush" Color="#252526" />
+                    <SolidColorBrush x:Key="SidebarBorderBrush" Color="#3F3F46" />
+                    <SolidColorBrush x:Key="SidebarItemHoverBrush" Color="#2A2D2E" />
+                    <SolidColorBrush x:Key="SidebarItemSelectedBrush" Color="#37373D" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <!-- Sidebar backgrounds - light mode -->
+                    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#F3F3F3" />
+                    <SolidColorBrush x:Key="SidebarTabBarBackgroundBrush" Color="#EBEBEB" />
+                    <SolidColorBrush x:Key="SidebarBorderBrush" Color="#D0D0D0" />
+                    <SolidColorBrush x:Key="SidebarItemHoverBrush" Color="#E8E8E8" />
+                    <SolidColorBrush x:Key="SidebarItemSelectedBrush" Color="#DEDEDE" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Default">
+                    <!-- Default to dark mode -->
+                    <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#1E1E1E" />
+                    <SolidColorBrush x:Key="SidebarTabBarBackgroundBrush" Color="#252526" />
+                    <SolidColorBrush x:Key="SidebarBorderBrush" Color="#3F3F46" />
+                    <SolidColorBrush x:Key="SidebarItemHoverBrush" Color="#2A2D2E" />
+                    <SolidColorBrush x:Key="SidebarItemSelectedBrush" Color="#37373D" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

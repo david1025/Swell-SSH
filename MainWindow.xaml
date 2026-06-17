@@ -47,11 +47,12 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*" MinHeight="100"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <!-- Header -->
                         <Grid Grid.Row="0" Padding="16,8,16,4">
-                            <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+                            <TextBlock Text="SSH 连接" Style="{ThemeResource SubtitleTextBlockStyle}" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                         </Grid>
 
                         <!-- Quick connect bar -->
@@ -68,7 +69,7 @@
                                     Width="32" Height="32" Padding="0"
                                     ToolTipService.ToolTip="连接"
                                     Click="PaneQuickConnectButton_Click">
-                                <FontIcon Glyph="&#xE768;" FontSize="13"/>
+                                <FontIcon Glyph="&#xE768;" FontSize="13" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
                             </Button>
                         </Grid>
 
@@ -83,18 +84,89 @@
                             </ListView.ItemContainerTransitions>
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
-                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Padding" Value="16,0,0,0"/>
                                     <Setter Property="MinHeight" Value="32"/>
                                     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListViewItem">
+                                                <Border x:Name="RootBorder"
+                                                        Background="{TemplateBinding Background}"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <VisualStateManager.VisualStateGroups>
+                                                        <VisualStateGroup x:Name="CommonStates">
+                                                            <VisualState x:Name="Normal"/>
+                                                            <VisualState x:Name="PointerOver">
+                                                                <VisualState.Setters>
+                                                                    <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemHoverBrush}"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                            <VisualState x:Name="Selected">
+                                                                <VisualState.Setters>
+                                                                    <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemSelectedBrush}"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                            <VisualState x:Name="SelectedPointerOver">
+                                                                <VisualState.Setters>
+                                                                    <Setter Target="RootBorder.Background" Value="{ThemeResource SidebarItemSelectedBrush}"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                        </VisualStateGroup>
+                                                    </VisualStateManager.VisualStateGroups>
+                                                    <ContentPresenter />
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
                                 </Style>
                             </ListView.ItemContainerStyle>
                         </ListView>
 
+                        <!-- Bottom toolbar -->
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Padding="8,4,8,8" Spacing="4">
+                            <Button x:Name="PaneAddConnectionButton" Click="PaneAddConnectionButton_Click"
+                                    ToolTipService.ToolTip="新建连接" Style="{ThemeResource AccentButtonStyle}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE710;" FontSize="14"/>
+                                    <TextBlock Text="新建连接"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="PaneEditConnectionButton" Click="PaneEditConnectionButton_Click"
+                                    ToolTipService.ToolTip="编辑所选连接">
+                                <FontIcon Glyph="&#xE70F;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                            <Button x:Name="PaneDeleteConnectionButton" Click="PaneDeleteConnectionButton_Click"
+                                    ToolTipService.ToolTip="删除所选连接">
+                                <FontIcon Glyph="&#xE74D;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                            </Button>
+                        </StackPanel>
                     </Grid>
                 </NavigationView.PaneCustomContent>
 
+                <!-- Pane Footer: SFTP + Theme toggle + Settings -->
                 <NavigationView.PaneFooter>
                     <StackPanel Spacing="2" Padding="4,0,4,4">
+                        <NavigationViewItem x:Name="SftpNavItem"
+                                            Tapped="SftpNavItem_Tapped"
+                                            Content="SFTP"
+                                            Tag="sftp"
+                                            ToolTipService.ToolTip="打开 SFTP 文件管理">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8B7;" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem x:Name="ThemeToggleNavItem"
+                                            Tapped="ThemeToggleNavItem_Tapped"
+                                            Content="浅色/深色模式"
+                                            Tag="theme_toggle"
+                                            ToolTipService.ToolTip="切换应用主题"
+                                            PointerEntered="ThemeToggleNavItem_PointerEntered"
+                                            PointerExited="ThemeToggleNavItem_PointerExited">
+                            <NavigationViewItem.Icon>
+                                <FontIcon x:Name="ThemeToggleIcon" Glyph="&#xE706;" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                         <NavigationViewItem x:Name="SettingsNavItem"
                                             Tapped="SettingsNavItem_Tapped"
                                             Content="设置"
@@ -103,7 +175,7 @@
                                             PointerEntered="SettingsNavItem_PointerEntered"
                                             PointerExited="SettingsNavItem_PointerExited">
                             <NavigationViewItem.Icon>
-                                <FontIcon x:Name="SettingsNavIcon" Glyph="&#xE713;" />
+                                <FontIcon x:Name="SettingsNavIcon" Glyph="&#xE713;" Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
                             </NavigationViewItem.Icon>
                             <NavigationViewItem.InfoBadge>
                                 <InfoBadge x:Name="UpdateBadge" Style="{ThemeResource AttentionIconInfoBadgeStyle}" Visibility="Collapsed" />
@@ -127,20 +199,7 @@
                     Background="Transparent" BorderBrush="Transparent"
                     Padding="0"
                     Click="GlobalToggleSidebarButton_Click" ToolTipService.ToolTip="切换终端工具箱">
-                <FontIcon Glyph="&#xE90D;" FontSize="14"/>
-            </Button>
-
-            <!-- Pane Theme Toggle Button: aligned to the right side of the 300px navigation drawer -->
-            <Button x:Name="PaneThemeToggleButton"
-                    VerticalAlignment="Top" HorizontalAlignment="Left"
-                    Width="36" Height="36"
-                    Margin="252,6,0,0"
-                    CornerRadius="4"
-                    Visibility="Collapsed"
-                    Background="Transparent" BorderBrush="Transparent"
-                    Padding="0"
-                    Click="PaneThemeToggleButton_Click" ToolTipService.ToolTip="切换主题">
-                <FontIcon x:Name="PaneThemeToggleIcon" Glyph="&#xE706;" FontSize="16"/>
+                <FontIcon Glyph="&#xE90D;" FontSize="14" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
             </Button>
 
             <!-- Drag region for custom title bar -->

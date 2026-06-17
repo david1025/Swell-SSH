@@ -539,6 +539,13 @@ namespace SwellSSH.Pages
             TerminalTabView.SelectedItem = tab;
             UpdateEmptyState();
 
+            // Wait for the SftpPage to be loaded into the visual tree so that
+            // its XamlRoot is available for ContentDialog.ShowAsync().
+            var loadedTcs = new TaskCompletionSource();
+            sftpPage.Loaded += (_, _) => loadedTcs.TrySetResult();
+            if (sftpPage.IsLoaded) loadedTcs.TrySetResult();
+            await loadedTcs.Task;
+
             await sftpPage.OpenRemoteSessionFromPickerAsync();
         }
 

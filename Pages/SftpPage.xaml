@@ -207,9 +207,10 @@
                           x:Name="LocalFileList"
                           ItemsSource="{x:Bind LocalItems, Mode=OneWay}"
                           ItemTemplate="{StaticResource FileItemTemplate}"
-                          SelectionMode="Single"
+                          SelectionMode="Extended"
                           IsDoubleTapEnabled="True"
                           DoubleTapped="LocalFileList_DoubleTapped"
+                          RightTapped="LocalFileList_RightTapped"
                           CanDragItems="True"
                           DragItemsStarting="LocalFileList_DragItemsStarting"
                           AllowDrop="True"
@@ -285,7 +286,8 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="160"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="140"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
@@ -304,24 +306,34 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
-                <ProgressBar Grid.Column="2"
+                <TextBlock Grid.Column="2"
+                           Text="{x:Bind TransferProgress.SpeedText, Mode=OneWay}"
+                           FontFamily="Consolas"
+                           FontSize="12"
+                           MinWidth="72"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           TextAlignment="Right"
+                           VerticalAlignment="Center"/>
+                <ProgressBar Grid.Column="3"
                              Minimum="0"
                              Maximum="100"
                              Value="{x:Bind TransferProgress.Percent, Mode=OneWay}"
                              VerticalAlignment="Center"/>
-                <TextBlock Grid.Column="3"
+                <TextBlock Grid.Column="4"
                            Text="{x:Bind TransferProgress.PercentText, Mode=OneWay}"
                            FontFamily="Consolas"
                            FontSize="12"
                            MinWidth="44"
                            TextAlignment="Right"
                            VerticalAlignment="Center"/>
-                <Button Grid.Column="4"
-                        x:Name="CancelTransferButton"
-                        Visibility="{x:Bind TransferProgress.CancelVisibility, Mode=OneWay}"
-                        Click="CancelTransferButton_Click"
-                        Padding="10,4"
-                        Content="取消"/>
+                <Button Grid.Column="5"
+                        Click="DismissTransferButton_Click"
+                        Padding="4"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        ToolTipService.ToolTip="关闭">
+                    <FontIcon Glyph="&#xE8BB;" FontSize="12"/>
+                </Button>
             </Grid>
         </Border>
     </Grid>

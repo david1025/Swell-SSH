@@ -43,10 +43,10 @@ namespace SwellSSH.Pages
             get
             {
                 if (IsParent) return "";
-                if (IsDirectory) return "folder";
+                if (IsDirectory) return "文件夹";
                 var extension = Path.GetExtension(Name);
                 return string.IsNullOrWhiteSpace(extension)
-                    ? "file"
+                    ? "文件"
                     : extension.TrimStart('.').ToLowerInvariant();
             }
         }
@@ -1118,16 +1118,16 @@ namespace SwellSSH.Pages
             {
                 try
                 {
-                    var at = new CheckBox { Content = "Apply to All", Visibility = ctx.AllowApplyToAll ? Visibility.Visible : Visibility.Collapsed };
+                    var at = new CheckBox { Content = "全部应用", Visibility = ctx.AllowApplyToAll ? Visibility.Visible : Visibility.Collapsed };
                     var btns = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
                     ContentDialog? dlg = null;
                     void AddBtn(string text, TransferConflictAction action) { var b = new Button { Content = text }; b.Click += (_, _) => { var applyAll = at.IsChecked == true; System.Diagnostics.Debug.WriteLine($"[ConflictDialog] Button '{text}' clicked, ApplyAll={applyAll}, AllowApplyToAll={ctx.AllowApplyToAll}"); if (applyAll && ctx.AllowApplyToAll) { _batchConflictAction = action; System.Diagnostics.Debug.WriteLine($"[ConflictDialog] Set _batchConflictAction = {action}"); } tcs.TrySetResult(new TransferConflictDecision(action, applyAll)); try { dlg?.Hide(); } catch { } }; btns.Children.Add(b); }
-                    AddBtn("Overwrite", TransferConflictAction.Overwrite); AddBtn("Skip", TransferConflictAction.Skip); AddBtn("Duplicate", TransferConflictAction.Duplicate);
-                    if (ctx.AllowMerge) AddBtn("Merge", TransferConflictAction.Merge); AddBtn("Cancel", TransferConflictAction.Cancel);
-                    var side = ctx.IsUpload ? "remote" : "local";
+                    AddBtn("覆盖", TransferConflictAction.Overwrite); AddBtn("跳过", TransferConflictAction.Skip); AddBtn("副本", TransferConflictAction.Duplicate);
+                    if (ctx.AllowMerge) AddBtn("合并", TransferConflictAction.Merge); AddBtn("取消", TransferConflictAction.Cancel);
+                    var side = ctx.IsUpload ? "远程" : "本地";
                     var primaryFg2 = GetThemeBrush("TextFillColorPrimaryBrush"); var secondaryFg2 = GetThemeBrush("TextFillColorSecondaryBrush");
-                    var panel = new StackPanel { Spacing = 12, Children = { new TextBlock { Text = $"A {side} {(ctx.IsDirectory ? "folder" : "file")} named \"{ctx.Name}\" already exists.", TextWrapping = TextWrapping.Wrap, Foreground = primaryFg2 }, new TextBlock { Text = ctx.TargetPath, FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = secondaryFg2, TextWrapping = TextWrapping.Wrap }, at, btns } };
-                    dlg = new ContentDialog { XamlRoot = XamlRoot, RequestedTheme = ActualTheme, Title = "File already exists", Content = panel };
+                    var panel = new StackPanel { Spacing = 12, Children = { new TextBlock { Text = $"一个{side}{(ctx.IsDirectory ? "文件夹" : "文件")} \"{ctx.Name}\" 已存在。", TextWrapping = TextWrapping.Wrap, Foreground = primaryFg2 }, new TextBlock { Text = ctx.TargetPath, FontFamily = new FontFamily("Consolas"), FontSize = 12, Foreground = secondaryFg2, TextWrapping = TextWrapping.Wrap }, at, btns } };
+                    dlg = new ContentDialog { XamlRoot = XamlRoot, RequestedTheme = ActualTheme, Title = "文件已存在", Content = panel };
                     await _dialogGate.WaitAsync();
                     try { await dlg.ShowAsync(); }
                     finally { _dialogGate.Release(); }

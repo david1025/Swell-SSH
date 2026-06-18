@@ -69,6 +69,12 @@ namespace SwellSSH
 
             // Navigation
             MainNav.SelectionChanged += MainNav_SelectionChanged;
+            Activated += (_, args) =>
+            {
+                if (args.WindowActivationState != WindowActivationState.Deactivated &&
+                    ContentFrame.Content is MainPage mainPage)
+                    mainPage.RestoreTerminalFocus();
+            };
 
             // Background update check
             _ = CheckForUpdatesAsync();

@@ -90,7 +90,8 @@
     <Grid>
         <!-- Terminal TabView & Sidebar (full width) -->
         <Grid>
-            <SplitView x:Name="TerminalSplitView" DisplayMode="Overlay" PanePlacement="Right" OpenPaneLength="260" IsPaneOpen="False" PaneBackground="Transparent">
+            <SplitView x:Name="TerminalSplitView" DisplayMode="Overlay" PanePlacement="Right" OpenPaneLength="260" IsPaneOpen="False" PaneBackground="Transparent"
+                       PaneClosed="TerminalSplitView_PaneClosed">
                 <SplitView.Content>
                     <Grid>
                         <TabView
@@ -294,8 +295,38 @@
                             </Grid>
 
                             <!-- View 2: Themes -->
-                            <Grid x:Name="SidebarThemesView" Visibility="Collapsed">
-                                <ListView ItemsSource="{x:Bind Themes, Mode=OneWay}" SelectionMode="Single" SelectionChanged="SidebarThemesList_SelectionChanged" Margin="8,0">
+                            <Grid x:Name="SidebarThemesView" Visibility="Collapsed" Margin="16,0,16,12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <StackPanel Grid.Row="0" Spacing="10" Margin="0,4,0,12">
+                                    <TextBlock Text="SSH 字体" Style="{ThemeResource BodyStrongTextBlockStyle}"/>
+                                    <ComboBox x:Name="SidebarFontFamilyCombo" HorizontalAlignment="Stretch"
+                                              PlaceholderText="选择终端字体"
+                                              SelectionChanged="SidebarFontFamily_SelectionChanged"/>
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="120"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="字体大小" VerticalAlignment="Center"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <NumberBox x:Name="SidebarFontSizeBox" Grid.Column="1" Minimum="10" Maximum="32"
+                                                   SmallChange="1" SpinButtonPlacementMode="Compact"
+                                                   ValueChanged="SidebarFontSize_ValueChanged"/>
+                                    </Grid>
+                                    <Border Height="1" Background="{ThemeResource SidebarBorderBrush}" Margin="0,2"/>
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="主题" Style="{ThemeResource BodyStrongTextBlockStyle}" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1" Content="新建主题" Click="NewTerminalTheme_Click" Padding="12,5"/>
+                                    </Grid>
+                                </StackPanel>
+                                <ListView Grid.Row="1" ItemsSource="{x:Bind Themes, Mode=OneWay}" SelectionMode="Single" SelectionChanged="SidebarThemesList_SelectionChanged" Margin="-8,0">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="Padding" Value="8"/>

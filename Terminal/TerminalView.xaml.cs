@@ -9,6 +9,7 @@ using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using SwellSSH.Services;
 using Windows.UI;
 
 namespace SwellSSH.Terminal
@@ -370,8 +371,19 @@ namespace SwellSSH.Terminal
             _settings = settings;
             InvalidateRowCache();
             
-            // Apply color scheme simple mapping
-            if (settings.ColorScheme == "Default Light")
+            // JSON themes are the source of truth. The legacy mappings below remain
+            // as a safe fallback for an invalid/missing configuration file.
+            var configuredTheme = TerminalThemeService.Instance.Find(settings.ColorScheme);
+            if (configuredTheme != null)
+            {
+                _defaultBg = TerminalThemeService.ParseColor(configuredTheme.Background, _defaultBg);
+                _defaultFg = TerminalThemeService.ParseColor(configuredTheme.Foreground, _defaultFg);
+                _selectionBg = TerminalThemeService.ParseColor(configuredTheme.SelectionBackground, _selectionBg);
+                _cursorColor = TerminalThemeService.ParseColor(configuredTheme.CursorColor, _defaultFg);
+                _ansiColors = configuredTheme.AnsiColors
+                    .Select(c => TerminalThemeService.ParseColor(c, _defaultFg)).ToArray();
+            }
+            else if (settings.ColorScheme == "Default Light")
             {
                 _defaultBg = Color.FromArgb(255, 250, 250, 250);
                 _defaultFg = Color.FromArgb(255, 50, 50, 50);
@@ -662,6 +674,13 @@ else if (settings.ColorScheme == "Termark Light")
             {
                 Interlocked.Exchange(ref _redrawScheduled, 0);
             }
+        }
+
+        public void FocusTerminal()
+        {
+            if (!_isLoaded) return;
+            Focus(FocusState.Programmatic);
+            RequestRedraw();
         }
 
         // ── Win2D Lifecycle & Measuring ───────────────────────────────────────
@@ -1144,7 +1163,7 @@ else if (settings.ColorScheme == "Termark Light")
 
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            Color fg = ParseColor(attr.FgColor, _defaultFg);
+            Color fg = EnsureReadableTextColor(ParseColor(attr.FgColor, _defaultFg), bg);
             
             // Temp bold implementation: use standard text format but draw twice slightly offset
             // Real bold needs font weight changes, but caching formats is complex for Phase 4
@@ -1163,10 +1182,75 @@ else if (settings.ColorScheme == "Termark Light")
             {
                 int idx = (int)(c & 0xFF);
                 if (idx >= 0 && idx < 16) return _ansiColors[idx];
-                // Simplify 256 colors: fallback to grey for index 16-255 if not matched above
-                return Color.FromArgb(255, 136, 136, 136); 
+                return ParseXterm256Color(idx);
             }
             return Color.FromArgb(255, (byte)((c >> 16) & 0xFF), (byte)((c >> 8) & 0xFF), (byte)(c & 0xFF));
+        }
+
+        private static Color ParseXterm256Color(int index)
+        {
+            // 16-231: 6x6x6 RGB cube. 232-255: 24-step grayscale ramp.
+            if (index is >= 16 and <= 231)
+            {
+                int value = index - 16;
+                int red = value / 36;
+                int green = value / 6 % 6;
+                int blue = value % 6;
+                return Color.FromArgb(255, XtermCubeChannel(red), XtermCubeChannel(green), XtermCubeChannel(blue));
+            }
+            if (index is >= 232 and <= 255)
+            {
+                byte gray = (byte)(8 + (index - 232) * 10);
+                return Color.FromArgb(255, gray, gray, gray);
+            }
+            return Color.FromArgb(255, 136, 136, 136);
+        }
+
+        private static byte XtermCubeChannel(int component) =>
+            component == 0 ? (byte)0 : (byte)(55 + component * 40);
+
+        /// <summary>
+        /// Keeps ANSI colors recognizable while preventing dark blue/grey text from
+        /// disappearing into dark themes (and pale colors into light themes).
+        /// </summary>
+        private static Color EnsureReadableTextColor(Color foreground, Color background)
+        {
+            const double minimumContrast = 4.5;
+            if (ContrastRatio(foreground, background) >= minimumContrast)
+                return foreground;
+
+            bool lighten = RelativeLuminance(background) < 0.5;
+            Color adjusted = foreground;
+            for (int amount = 12; amount <= 192; amount += 12)
+            {
+                adjusted = Color.FromArgb(foreground.A,
+                    BlendChannel(foreground.R, lighten ? (byte)255 : (byte)0, amount),
+                    BlendChannel(foreground.G, lighten ? (byte)255 : (byte)0, amount),
+                    BlendChannel(foreground.B, lighten ? (byte)255 : (byte)0, amount));
+                if (ContrastRatio(adjusted, background) >= minimumContrast)
+                    return adjusted;
+            }
+            return adjusted;
+        }
+
+        private static byte BlendChannel(byte source, byte target, int amount) =>
+            (byte)(source + (target - source) * amount / 255);
+
+        private static double ContrastRatio(Color first, Color second)
+        {
+            double lighter = Math.Max(RelativeLuminance(first), RelativeLuminance(second));
+            double darker = Math.Min(RelativeLuminance(first), RelativeLuminance(second));
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
+        private static double RelativeLuminance(Color color)
+        {
+            static double Linear(byte channel)
+            {
+                double value = channel / 255.0;
+                return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+            }
+            return 0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
         }
 
         // ── Input Handling ────────────────────────────────────────────────────

@@ -1,91 +1,86 @@
 using System;
-using System.Collections.Generic;
 using System.Text;
 
 namespace SwellSSH.Terminal
 {
-    /// <summary>
-    /// Parses a stream of raw bytes into VT actions based on the DEC ANSI standard.
-    /// Handles UTF-8 decoding for printable characters.
-    /// </summary>
+    /// <summary>Streaming DEC/ANSI parser with batched UTF-8 decoding.</summary>
     public sealed class VtParser
     {
         private readonly ITerminalActionHandler _handler;
-        private readonly Decoder _utf8Decoder;
-        private readonly char[] _charBuffer = new char[1];
+        private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder();
 
-        private enum State
-        {
-            Ground,
-            Escape,
-            CsiEntry,
-            CsiParam,
-            OscString,
-            OscEscape // Inside OSC, received ESC (potential ST)
-        }
+        private enum State { Ground, Escape, CsiEntry, CsiParam, OscString, OscEscape }
+        private State _state;
 
-        private State _state = State.Ground;
-
-        // CSI parameters collection
-        private readonly List<int> _csiParams = new(8);
-        private int _currentParam = 0;
-        private bool _hasParam = false;
-        private bool _hasQuestionMark = false; // e.g. CSI ? 25 h
-
-        // OSC payload collection
+        private readonly int[] _csiParams = new int[16];
+        private int _csiParamCount;
+        private int _currentParam;
+        private bool _hasParam;
+        private bool _hasQuestionMark;
         private readonly StringBuilder _oscPayload = new();
 
-        public VtParser(ITerminalActionHandler handler)
-        {
-            _handler = handler;
-            _utf8Decoder = Encoding.UTF8.GetDecoder();
-        }
+        public VtParser(ITerminalActionHandler handler) => _handler = handler;
 
         public void Feed(ReadOnlySpan<byte> data)
         {
-            for (int i = 0; i < data.Length; i++)
+            int i = 0;
+            while (i < data.Length)
             {
                 byte b = data[i];
 
-                // C0 Controls (0x00 - 0x1F) always execute immediately anywhere
-                if (b <= 0x1F)
+                if (_state == State.Ground && b >= 0x20 && b != 0x7F)
                 {
-                    if (b == 0x1B) // ESC
+                    int start = i++;
+                    while (i < data.Length && data[i] >= 0x20 && data[i] != 0x7F) i++;
+                    DecodePrintable(data.Slice(start, i - start), appendToOsc: false);
+                    continue;
+                }
+
+                if (_state == State.OscString && b >= 0x20 && b != 0x7F)
+                {
+                    int start = i++;
+                    while (i < data.Length && data[i] >= 0x20 && data[i] != 0x7F) i++;
+                    DecodePrintable(data.Slice(start, i - start), appendToOsc: true);
+                    continue;
+                }
+
+                i++;
+                if (_state == State.OscString)
+                {
+                    if (b == 0x07) EndOsc();
+                    else if (b == 0x1B) _state = State.OscEscape;
+                    continue;
+                }
+
+                if (_state == State.OscEscape)
+                {
+                    if (b == (byte)'\\') EndOsc();
+                    else
                     {
-                        EnterEscape();
-                        continue;
+                        _state = State.OscString;
+                        if (b >= 0x20 && b != 0x7F)
+                            DecodePrintable(data.Slice(i - 1, 1), appendToOsc: true);
                     }
-                    else if (b == 0x07) // BEL
-                    {
-                        if (_state == State.OscString)
-                            EndOsc();
-                        else
-                            _handler.ExecuteControlCharacter(b);
-                        continue;
-                    }
-                    else if (b != 0x00 && b != 0x7F) // Ignore NUL and DEL
-                    {
-                        // Some terminals execute C0 even inside OSC, but we'll ignore it there to be safe
-                        if (_state != State.OscString)
-                            _handler.ExecuteControlCharacter(b);
-                        continue;
-                    }
+                    continue;
+                }
+
+                if (b == 0x1B)
+                {
+                    EnterEscape();
+                    continue;
+                }
+
+                if (b <= 0x1F || b == 0x7F)
+                {
+                    if (b != 0x00 && b != 0x7F) _handler.ExecuteControlCharacter(b);
                     continue;
                 }
 
                 switch (_state)
                 {
-                    case State.Ground:
-                        if (b >= 0x20)
-                            ProcessPrintable(b);
-                        break;
-
                     case State.Escape:
-                        if (b == '[')
-                        {
-                            EnterCsi();
-                        }
-                        else if (b == ']')
+                        if (b == (byte)'[') EnterCsi();
+                        else if (b == (byte)']')
                         {
                             _state = State.OscString;
                             _oscPayload.Clear();
@@ -98,74 +93,63 @@ namespace SwellSSH.Terminal
                         break;
 
                     case State.CsiEntry:
-                        if (b == '?')
+                        if (b == (byte)'?')
                         {
                             _hasQuestionMark = true;
                             _state = State.CsiParam;
                         }
-                        else if (b >= '0' && b <= '9')
+                        else if (b >= (byte)'0' && b <= (byte)'9')
                         {
                             _state = State.CsiParam;
-                            _currentParam = b - '0';
+                            _currentParam = b - (byte)'0';
                             _hasParam = true;
                         }
-                        else if (b == ';')
+                        else if (b == (byte)';')
                         {
                             _state = State.CsiParam;
-                            _csiParams.Add(0); // empty param
+                            AddCsiParam(0);
                         }
                         else if (b >= 0x40 && b <= 0x7E)
                         {
-                            // Dispatch with no params
-                            _handler.CsiDispatch((char)b, Array.Empty<int>(), _hasQuestionMark);
-                            _state = State.Ground;
+                            DispatchCsi((char)b);
                         }
                         break;
 
                     case State.CsiParam:
-                        if (b >= '0' && b <= '9')
+                        if (b >= (byte)'0' && b <= (byte)'9')
                         {
-                            _currentParam = _currentParam * 10 + (b - '0');
+                            _currentParam = Math.Min(999999, _currentParam * 10 + b - (byte)'0');
                             _hasParam = true;
                         }
-                        else if (b == ';')
+                        else if (b == (byte)';')
                         {
-                            _csiParams.Add(_hasParam ? _currentParam : 0);
+                            AddCsiParam(_hasParam ? _currentParam : 0);
                             _currentParam = 0;
                             _hasParam = false;
                         }
                         else if (b >= 0x40 && b <= 0x7E)
                         {
-                            if (_hasParam) _csiParams.Add(_currentParam);
-                            _handler.CsiDispatch((char)b, _csiParams.ToArray(), _hasQuestionMark);
-                            _state = State.Ground;
-                        }
-                        break;
-
-                    case State.OscString:
-                        if (b == 0x1B) // ESC
-                        {
-                            _state = State.OscEscape;
-                        }
-                        else if (b >= 0x20)
-                        {
-                            ProcessOscPrintable(b);
-                        }
-                        break;
-
-                    case State.OscEscape:
-                        if (b == '\\') // ST (String Terminator)
-                        {
-                            EndOsc();
-                        }
-                        else
-                        {
-                            // It was just an escape inside OSC, ignore and revert
-                            _state = State.OscString;
-                            if (b >= 0x20) ProcessOscPrintable(b);
+                            if (_hasParam) AddCsiParam(_currentParam);
+                            DispatchCsi((char)b);
                         }
                         break;
                 }
+            }
+        }
+
+        private void DecodePrintable(ReadOnlySpan<byte> bytes, bool appendToOsc)
+        {
+            Span<char> chars = stackalloc char[512];
+            while (!bytes.IsEmpty)
+            {
+                int take = Math.Min(bytes.Length, 512);
+                int written = _utf8Decoder.GetChars(bytes.Slice(0, take), chars, flush: false);
+                if (written > 0)
+                {
+                    if (appendToOsc) _oscPayload.Append(chars.Slice(0, written));
+                    else _handler.Print(chars.Slice(0, written));
+                }
+                bytes = bytes.Slice(take);
             }
         }
 
@@ -178,57 +162,33 @@ namespace SwellSSH.Terminal
         private void EnterCsi()
         {
             _state = State.CsiEntry;
-            _csiParams.Clear();
+            _csiParamCount = 0;
             _currentParam = 0;
             _hasParam = false;
             _hasQuestionMark = false;
         }
 
+        private void AddCsiParam(int value)
+        {
+            if (_csiParamCount < _csiParams.Length) _csiParams[_csiParamCount++] = value;
+        }
+
+        private void DispatchCsi(char action)
+        {
+            _handler.CsiDispatch(action, _csiParams.AsSpan(0, _csiParamCount), _hasQuestionMark);
+            _state = State.Ground;
+        }
+
         private void EndOsc()
         {
             _state = State.Ground;
-            string osc = _oscPayload.ToString();
+            ReadOnlySpan<char> osc = _oscPayload.ToString().AsSpan();
             int sep = osc.IndexOf(';');
-            if (sep >= 0 && int.TryParse(osc.Substring(0, sep), out int cmd))
-            {
-                _handler.OscDispatch(cmd, osc.Substring(sep + 1));
-            }
-            else if (int.TryParse(osc, out cmd))
-            {
-                _handler.OscDispatch(cmd, string.Empty);
-            }
-        }
-
-        private void ProcessPrintable(byte b)
-        {
-            unsafe
-            {
-                byte* pByte = &b;
-                fixed (char* pChar = _charBuffer)
-                {
-                    int charsUsed = _utf8Decoder.GetChars(pByte, 1, pChar, 1, flush: false);
-                    if (charsUsed > 0)
-                    {
-                        _handler.Print(new string(_charBuffer, 0, charsUsed));
-                    }
-                }
-            }
-        }
-
-        private void ProcessOscPrintable(byte b)
-        {
-            unsafe
-            {
-                byte* pByte = &b;
-                fixed (char* pChar = _charBuffer)
-                {
-                    int charsUsed = _utf8Decoder.GetChars(pByte, 1, pChar, 1, flush: false);
-                    if (charsUsed > 0)
-                    {
-                        _oscPayload.Append(_charBuffer, 0, charsUsed);
-                    }
-                }
-            }
+            if (sep >= 0 && int.TryParse(osc.Slice(0, sep), out int command))
+                _handler.OscDispatch(command, osc.Slice(sep + 1).ToString());
+            else if (int.TryParse(osc, out command))
+                _handler.OscDispatch(command, string.Empty);
+            _oscPayload.Clear();
         }
     }
 }

@@ -21,6 +21,7 @@ namespace SwellSSH.Terminal
     public class TerminalRow
     {
         public TerminalCell[] Cells;
+        public long Version { get; private set; }
 
         public TerminalRow(int cols)
         {
@@ -39,6 +40,29 @@ namespace SwellSSH.Terminal
                     BgColor = TerminalCell.DefaultBg
                 };
             }
+            Version++;
+        }
+
+        public void Touch() => Version++;
+
+        public void DeleteCells(int startCol, int count)
+        {
+            if (count <= 0 || startCol < 0 || startCol >= Cells.Length) return;
+            count = Math.Min(count, Cells.Length - startCol);
+            int remaining = Cells.Length - startCol - count;
+            if (remaining > 0)
+                Array.Copy(Cells, startCol + count, Cells, startCol, remaining);
+            Clear(Cells.Length - count, count);
+        }
+
+        public void InsertCells(int startCol, int count)
+        {
+            if (count <= 0 || startCol < 0 || startCol >= Cells.Length) return;
+            count = Math.Min(count, Cells.Length - startCol);
+            int movable = Cells.Length - startCol - count;
+            if (movable > 0)
+                Array.Copy(Cells, startCol, Cells, startCol + count, movable);
+            Clear(startCol, count);
         }
     }
 
@@ -57,8 +81,16 @@ namespace SwellSSH.Terminal
         /// <summary>只读视图，供渲染层按索引访问。</summary>
         public CircularLineBuffer Lines => _lines;
 
-        public List<TerminalRow> Scrollback { get; } = new();
-        public int MaxScrollback { get; set; } = 1000;
+        public TerminalScrollbackBuffer Scrollback { get; } = new(1000);
+        public int MaxScrollback
+        {
+            get => Scrollback.Capacity;
+            set
+            {
+                lock (SyncRoot) Scrollback.SetCapacity(value);
+                NotifyChanged();
+            }
+        }
 
         public int CursorX { get; private set; }
         public int CursorY { get; private set; }
@@ -76,6 +108,9 @@ namespace SwellSSH.Terminal
 
         public event Action? BufferChanged;
         public event Action<string>? TitleChanged;
+
+        private int _updateDepth;
+        private bool _changePending;
 
         public TerminalBuffer(int cols, int rows)
         {
@@ -107,6 +142,7 @@ namespace SwellSSH.Terminal
                         for (int j = copyLen; j < cols; j++)
                             newCells[j] = new TerminalCell { Char = ' ', FgColor = TerminalCell.DefaultFg, BgColor = TerminalCell.DefaultBg };
                         line.Cells = newCells;
+                        line.Touch();
                     }
                 }
 
@@ -118,6 +154,29 @@ namespace SwellSSH.Terminal
                 _scrollBottom = Rows - 1;
             }
 
+            NotifyChanged();
+        }
+
+        public void BeginUpdate() => _updateDepth++;
+
+        public void EndUpdate()
+        {
+            if (_updateDepth == 0) return;
+            _updateDepth--;
+            if (_updateDepth == 0 && _changePending)
+            {
+                _changePending = false;
+                BufferChanged?.Invoke();
+            }
+        }
+
+        private void NotifyChanged()
+        {
+            if (_updateDepth > 0)
+            {
+                _changePending = true;
+                return;
+            }
             BufferChanged?.Invoke();
         }
 
@@ -165,7 +224,7 @@ namespace SwellSSH.Terminal
 
         // ── ITerminalActionHandler Implementation ─────────────────────────────
 
-        public void Print(string text)
+        public void Print(ReadOnlySpan<char> text)
         {
             for (int i = 0; i < text.Length; i++)
             {
@@ -175,8 +234,10 @@ namespace SwellSSH.Terminal
 
                 if (w == 2 && CursorX == Cols - 1)
                 {
-                    _lines[CursorY].Cells[CursorX] = _currentAttr;
-                    _lines[CursorY].Cells[CursorX].Char = ' ';
+                    var edgeRow = _lines[CursorY];
+                    edgeRow.Cells[CursorX] = _currentAttr;
+                    edgeRow.Cells[CursorX].Char = ' ';
+                    edgeRow.Touch();
                     CursorX = 0;
                     CursorDown();
                 }
@@ -186,25 +247,29 @@ namespace SwellSSH.Terminal
                     CursorDown();
                 }
 
-                _lines[CursorY].Cells[CursorX] = _currentAttr;
-                _lines[CursorY].Cells[CursorX].Char = c;
+                var row = _lines[CursorY];
+                row.Cells[CursorX] = _currentAttr;
+                row.Cells[CursorX].Char = c;
+                row.Touch();
                 CursorX++;
 
                 if (isSurrogate)
                 {
                     i++;
-                    _lines[CursorY].Cells[CursorX] = _currentAttr;
-                    _lines[CursorY].Cells[CursorX].Char = text[i];
+                    row.Cells[CursorX] = _currentAttr;
+                    row.Cells[CursorX].Char = text[i];
+                    row.Touch();
                     CursorX++;
                 }
                 else if (w == 2)
                 {
-                    _lines[CursorY].Cells[CursorX] = _currentAttr;
-                    _lines[CursorY].Cells[CursorX].Char = '\0';
+                    row.Cells[CursorX] = _currentAttr;
+                    row.Cells[CursorX].Char = '\0';
+                    row.Touch();
                     CursorX++;
                 }
             }
-            BufferChanged?.Invoke();
+            NotifyChanged();
         }
 
         private int WcWidth(char c)
@@ -250,7 +315,7 @@ namespace SwellSSH.Terminal
                     CursorX = 0;
                     break;
             }
-            BufferChanged?.Invoke();
+            NotifyChanged();
         }
 
         public void EscDispatch(char action)
@@ -265,10 +330,10 @@ namespace SwellSSH.Terminal
                     break;
                 // Add more ESC sequences (like save/restore cursor) as needed
             }
-            BufferChanged?.Invoke();
+            NotifyChanged();
         }
 
-        public void CsiDispatch(char action, int[] parameters, bool hasQuestionMark)
+        public void CsiDispatch(char action, ReadOnlySpan<int> parameters, bool hasQuestionMark)
         {
             if (hasQuestionMark)
             {
@@ -330,6 +395,15 @@ namespace SwellSSH.Terminal
                     else if (p1 == 2) // All
                         _lines[CursorY].Clear(0, Cols);
                     break;
+                case 'P': // DCH - Delete Character(s)
+                    _lines[CursorY].DeleteCells(CursorX, Math.Max(1, p1));
+                    break;
+                case '@': // ICH - Insert Character(s)
+                    _lines[CursorY].InsertCells(CursorX, Math.Max(1, p1));
+                    break;
+                case 'X': // ECH - Erase Character(s)
+                    _lines[CursorY].Clear(CursorX, Math.Min(Math.Max(1, p1), Cols - CursorX));
+                    break;
                 case 'L': // IL - Insert Lines
                 {
                     int n = Math.Max(1, p1);
@@ -364,7 +438,7 @@ namespace SwellSSH.Terminal
                     HandleSgr(parameters);
                     break;
             }
-            BufferChanged?.Invoke();
+            NotifyChanged();
         }
 
         public void OscDispatch(int command, string payload)
@@ -404,17 +478,17 @@ namespace SwellSSH.Terminal
             if (_scrollTop == 0 && _scrollBottom == Rows - 1)
             {
                 _lines.RemoveFirst();
-                _lines.AddLast(new TerminalRow(Cols));
+                TerminalRow? reusable = Scrollback.Add(topRow);
+                if (reusable == null || reusable.Cells.Length != Cols)
+                    reusable = new TerminalRow(Cols);
+                else
+                    reusable.Clear(0, Cols);
+                _lines.AddLast(reusable);
 
                 // 只有全屏滚动时才推入 scrollback
-                Scrollback.Add(topRow);
-                if (Scrollback.Count > MaxScrollback)
-                {
-                    int removeCount = Scrollback.Count - MaxScrollback;
-                    Scrollback.RemoveRange(0, removeCount);
+                /* Scrollback insertion and row recycling are handled above.
                     // BUG-01: TrimExcess 释放 List 底层数组，防止内存碎片
-                    Scrollback.TrimExcess();
-                }
+                    The fixed-capacity ring never shifts or trims its backing array. */
             }
             else
             {
@@ -444,7 +518,7 @@ namespace SwellSSH.Terminal
             }
         }
 
-        private void HandleSgr(int[] parameters)
+        private void HandleSgr(ReadOnlySpan<int> parameters)
         {
             if (parameters.Length == 0)
             {

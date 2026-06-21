@@ -51,7 +51,7 @@ namespace SwellSSH.Terminal
         /// Phase 2 debug: raw UTF-8 output from server, before VT parsing.
         /// In Phase 4 this will be replaced by TerminalBuffer.Changed events.
         /// </summary>
-        public event Action<byte[]>? RawDataReceived;
+        public event SshDataReceivedHandler? RawDataReceived;
 
         /// <summary>Fired when the remote sends an OSC window title update.</summary>
         public event Action<string>? TitleChanged;
@@ -71,9 +71,17 @@ namespace SwellSSH.Terminal
             Transport.DataReceived += bytes =>
             {
                 RawDataReceived?.Invoke(bytes);
-                lock (Buffer.SyncRoot)
+                Buffer.BeginUpdate();
+                try
                 {
-                    Parser.Feed(bytes);
+                    lock (Buffer.SyncRoot)
+                    {
+                        Parser.Feed(bytes);
+                    }
+                }
+                finally
+                {
+                    Buffer.EndUpdate();
                 }
             };
 

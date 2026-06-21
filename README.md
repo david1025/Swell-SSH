@@ -93,7 +93,10 @@
 |---|---|
 | 连接配置 | `%AppData%\SwellSSH\connections.json` |
 | 外观设置 | `%AppData%\SwellSSH\settings.json` |
+| 自定义终端主题 | `%AppData%\SwellSSH\terminal-themes.json` |
 | 更新日志 | `%LocalAppData%\SwellSSH\Updates\updater.log` |
+
+终端主题使用 Windows Terminal 配色格式，由 [`Assets/terminal-themes.json`](Assets/terminal-themes.json) 配置。开发时可直接追加主题；用户也可以在上面的 AppData 路径粘贴单个主题对象、主题数组，或 Windows Terminal 配置中的 `schemes` 数组。用户主题会按名称覆盖内置主题，也可以追加全新主题。
 
 > 密码字段使用 Windows DPAPI 加密，仅当前用户可解密，配置文件可安全备份。
 

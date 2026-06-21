@@ -87,4 +87,60 @@ namespace SwellSSH.Terminal
             _head = 0;
         }
     }
+
+    public sealed class TerminalScrollbackBuffer
+    {
+        private TerminalRow[] _buffer;
+        private int _head;
+        private int _count;
+
+        public TerminalScrollbackBuffer(int capacity)
+        {
+            _buffer = new TerminalRow[System.Math.Max(0, capacity)];
+        }
+
+        public int Count => _count;
+        public int Capacity => _buffer.Length;
+
+        public TerminalRow this[int index]
+        {
+            get
+            {
+                if ((uint)index >= (uint)_count)
+                    throw new System.ArgumentOutOfRangeException(nameof(index));
+                return _buffer[(_head + index) % _buffer.Length];
+            }
+        }
+
+        /// <summary>Returns an evicted row so its cells can be reused.</summary>
+        public TerminalRow? Add(TerminalRow row)
+        {
+            if (_buffer.Length == 0) return row;
+            if (_count < _buffer.Length)
+            {
+                _buffer[(_head + _count) % _buffer.Length] = row;
+                _count++;
+                return null;
+            }
+
+            TerminalRow evicted = _buffer[_head];
+            _buffer[_head] = row;
+            _head = (_head + 1) % _buffer.Length;
+            return evicted;
+        }
+
+        public void SetCapacity(int capacity)
+        {
+            capacity = System.Math.Max(0, capacity);
+            if (capacity == _buffer.Length) return;
+
+            var replacement = new TerminalRow[capacity];
+            int keep = System.Math.Min(_count, capacity);
+            int first = _count - keep;
+            for (int i = 0; i < keep; i++) replacement[i] = this[first + i];
+            _buffer = replacement;
+            _head = 0;
+            _count = keep;
+        }
+    }
 }

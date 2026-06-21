@@ -174,6 +174,7 @@ namespace SwellSSH.Pages
             ServerMonitorService.Instance.StatsUpdated += OnStatsUpdated;
 
             LoadThemes();
+            _ = LoadSidebarAppearanceAsync();
             _ = LoadSnippetsAsync();
             
             // Set initial Sidebar Tab
@@ -181,6 +182,7 @@ namespace SwellSSH.Pages
 
             // Hook tab selection changed to update sidebar toggle button state
             TerminalTabView.SelectionChanged += TerminalTabView_SelectionChanged;
+            AddHandler(PointerReleasedEvent, new PointerEventHandler(MainPage_PointerReleased), true);
 
             this.Unloaded += (_, _) =>
             {
@@ -201,9 +203,19 @@ namespace SwellSSH.Pages
                 if (tab.Content is Grid grid && grid.Children.FirstOrDefault(c => c is TerminalView) is TerminalView terminalView)
                 {
                     terminalView.ApplySettings(settings);
+                    grid.Background = GetTerminalBackgroundBrush(settings);
                 }
             }
             SyncThemeMenuCheckedState(settings.ColorScheme);
+        }
+
+        private static SolidColorBrush GetTerminalBackgroundBrush(TerminalSettings settings)
+        {
+            var theme = TerminalThemeService.Instance.Find(settings.ColorScheme);
+            var color = theme == null
+                ? Windows.UI.Color.FromArgb(255, 12, 12, 12)
+                : TerminalThemeService.ParseColor(theme.Background, Windows.UI.Color.FromArgb(255, 12, 12, 12));
+            return new SolidColorBrush(color);
         }
 
         private void SetupKeyboardShortcuts()
@@ -447,6 +459,7 @@ namespace SwellSSH.Pages
             TerminalTabView.TabItems.Add(tab);
             TerminalTabView.SelectedItem = tab;
             UpdateEmptyState();
+            RestoreTerminalFocus();
         }
 
         public void ConnectToProfile(ConnectionProfile profile)
@@ -768,6 +781,22 @@ namespace SwellSSH.Pages
 
         private void LoadThemes()
         {
+            Themes.Clear();
+            foreach (var theme in TerminalThemeService.Instance.Themes)
+            {
+                var ansi = theme.AnsiColors;
+                Themes.Add(new ThemeViewModel
+                {
+                    Name = theme.Name,
+                    BgBrush = new SolidColorBrush(TerminalThemeService.ParseColor(theme.Background, Microsoft.UI.Colors.Black)),
+                    FgBrush = new SolidColorBrush(TerminalThemeService.ParseColor(theme.Foreground, Microsoft.UI.Colors.White)),
+                    Accent1Brush = new SolidColorBrush(TerminalThemeService.ParseColor(ansi[1], Microsoft.UI.Colors.Red)),
+                    Accent2Brush = new SolidColorBrush(TerminalThemeService.ParseColor(ansi[2], Microsoft.UI.Colors.Green)),
+                    Accent3Brush = new SolidColorBrush(TerminalThemeService.ParseColor(ansi[4], Microsoft.UI.Colors.Blue))
+                });
+            }
+            if (Themes.Count > 0) return;
+
             // 浅色主题 (Light Themes)
             Themes.Add(new ThemeViewModel { Name = "Atom One Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfa, 0xfa, 0xfa)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x38, 0x3a, 0x42)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xe4, 0x56, 0x49)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x50, 0xa1, 0x4f)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x40, 0x78, 0xf2)) });
             Themes.Add(new ThemeViewModel { Name = "Ayu Light", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xfa, 0xfa, 0xfa)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x5c, 0x67, 0x73)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xff, 0x33, 0x33)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x86, 0xb3, 0x00)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x36, 0xa3, 0xd9)) });
@@ -803,6 +832,148 @@ namespace SwellSSH.Pages
             Themes.Add(new ThemeViewModel { Name = "Tokyo Night", BgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x1a, 0x1b, 0x26)), FgBrush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xc0, 0xca, 0xf5)), Accent1Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0xf7, 0x76, 0x8e)), Accent2Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x9e, 0xce, 0x6a)), Accent3Brush = new SolidColorBrush(Windows.UI.Color.FromArgb(255, 0x7a, 0xa2, 0xf7)) });
         
 }
+
+        private async Task LoadSidebarAppearanceAsync()
+        {
+            _cachedSettings = await _storage.LoadSettingsAsync();
+            SidebarFontFamilyCombo.ItemsSource = Microsoft.Graphics.Canvas.Text.CanvasTextFormat.GetSystemFontFamilies();
+            SidebarFontFamilyCombo.SelectedItem = _cachedSettings.FontFamily;
+            SidebarFontSizeBox.Value = _cachedSettings.FontSize;
+            SyncThemeMenuCheckedState(_cachedSettings.ColorScheme);
+        }
+
+        private async void SidebarFontFamily_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_cachedSettings == null || SidebarFontFamilyCombo.SelectedItem is not string font) return;
+            _cachedSettings.FontFamily = font;
+            await SaveSidebarAppearanceAsync();
+        }
+
+        private async void SidebarFontSize_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+        {
+            if (_cachedSettings == null || double.IsNaN(args.NewValue)) return;
+            _cachedSettings.FontSize = Math.Clamp(args.NewValue, 10, 32);
+            await SaveSidebarAppearanceAsync();
+        }
+
+        private async Task SaveSidebarAppearanceAsync()
+        {
+            if (_cachedSettings == null) return;
+            await _storage.SaveSettingsAsync(_cachedSettings);
+            TerminalSettings.NotifyGlobalSettingsChanged(_cachedSettings);
+        }
+
+        private async void NewTerminalTheme_Click(object sender, RoutedEventArgs e)
+        {
+            var source = TerminalThemeService.Instance.Find(_cachedSettings?.ColorScheme)
+                ?? TerminalThemeService.Instance.Themes.First();
+            var colors = new Dictionary<string, Windows.UI.Color>
+            {
+                ["Background"] = TerminalThemeService.ParseColor(source.Background, Microsoft.UI.Colors.Black),
+                ["Foreground"] = TerminalThemeService.ParseColor(source.Foreground, Microsoft.UI.Colors.White),
+                ["SelectionBackground"] = TerminalThemeService.ParseColor(source.SelectionBackground, Microsoft.UI.Colors.DarkBlue),
+                ["CursorColor"] = TerminalThemeService.ParseColor(source.CursorColor, Microsoft.UI.Colors.White)
+            };
+            for (var i = 0; i < 16; i++)
+                colors[$"Ansi{i}"] = TerminalThemeService.ParseColor(source.AnsiColors[i], Microsoft.UI.Colors.Gray);
+
+            var nameBox = new TextBox { Header = "主题名称", PlaceholderText = "例如 My Theme" };
+            var editor = new StackPanel { Spacing = 8 };
+            editor.Children.Add(nameBox);
+            editor.Children.Add(new TextBlock
+            {
+                Text = "基础颜色",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 0)
+            });
+            AddThemeColorEditor(editor, "背景", "Background", colors);
+            AddThemeColorEditor(editor, "文字", "Foreground", colors);
+            AddThemeColorEditor(editor, "选区", "SelectionBackground", colors);
+            AddThemeColorEditor(editor, "光标", "CursorColor", colors);
+            editor.Children.Add(new TextBlock
+            {
+                Text = "ANSI 颜色（普通 0–7 / 高亮 8–15）",
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 0)
+            });
+            var ansiNames = new[] { "黑", "红", "绿", "黄", "蓝", "品红", "青", "白" };
+            for (var i = 0; i < 16; i++)
+                AddThemeColorEditor(editor, $"{i}: {(i >= 8 ? "高亮" : "")} {ansiNames[i % 8]}", $"Ansi{i}", colors);
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ActualTheme,
+                Title = "新建终端主题",
+                Content = new ScrollViewer { Content = editor, MaxHeight = 560, Width = 420 },
+                PrimaryButtonText = "保存并应用",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Primary
+            };
+            dialog.PrimaryButtonClick += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(nameBox.Text)) return;
+                args.Cancel = true;
+                nameBox.Header = "主题名称（不能为空）";
+                nameBox.Focus(FocusState.Programmatic);
+            };
+
+            if (await dialog.ShowAsync() != ContentDialogResult.Primary) return;
+
+            var theme = new TerminalTheme
+            {
+                Name = nameBox.Text.Trim(),
+                Background = ToHex(colors["Background"]),
+                Foreground = ToHex(colors["Foreground"]),
+                SelectionBackground = ToHex(colors["SelectionBackground"]),
+                CursorColor = ToHex(colors["CursorColor"]),
+                AnsiColors = Enumerable.Range(0, 16).Select(i => ToHex(colors[$"Ansi{i}"])).ToList()
+            };
+            await TerminalThemeService.Instance.SaveUserThemeAsync(theme);
+            LoadThemes();
+            if (_cachedSettings == null) _cachedSettings = await _storage.LoadSettingsAsync();
+            _cachedSettings.ColorScheme = theme.Name;
+            await SaveSidebarAppearanceAsync();
+            SyncThemeMenuCheckedState(theme.Name);
+        }
+
+        private static void AddThemeColorEditor(StackPanel panel, string label, string key,
+            Dictionary<string, Windows.UI.Color> colors)
+        {
+            var row = new Grid { ColumnSpacing = 10 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+            var swatch = new Button
+            {
+                Width = 92,
+                Height = 30,
+                Padding = new Thickness(6, 2, 6, 2),
+                Content = ToHex(colors[key]),
+                Background = new SolidColorBrush(colors[key])
+            };
+            Grid.SetColumn(swatch, 1);
+            var picker = new ColorPicker
+            {
+                Color = colors[key],
+                IsAlphaEnabled = false,
+                IsColorChannelTextInputVisible = true,
+                IsHexInputVisible = true
+            };
+            picker.ColorChanged += (_, args) =>
+            {
+                colors[key] = args.NewColor;
+                swatch.Background = new SolidColorBrush(args.NewColor);
+                swatch.Content = ToHex(args.NewColor);
+            };
+            swatch.Flyout = new Flyout { Content = picker };
+            row.Children.Add(swatch);
+            panel.Children.Add(row);
+        }
+
+        private static string ToHex(Windows.UI.Color color, bool includeAlpha = false) => includeAlpha
+            ? $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}"
+            : $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
         private async Task LoadSnippetsAsync()
         {
@@ -972,9 +1143,41 @@ namespace SwellSSH.Pages
             TerminalSplitView.IsPaneOpen = !TerminalSplitView.IsPaneOpen;
         }
 
+        private void TerminalSplitView_PaneClosed(SplitView sender, object args)
+        {
+            // In Overlay mode the light-dismiss layer consumes the click that closes
+            // the pane, so restore terminal input after the close animation completes.
+            RestoreTerminalFocus();
+        }
+
         private void TerminalTabView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateSidebarToggleButtonState();
+            RestoreTerminalFocus();
+        }
+
+        public void RestoreTerminalFocus()
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (TerminalTabView.SelectedItem is not TabViewItem tab || tab.Tag is not TerminalSession)
+                    return;
+                if (tab.Content is Grid grid && grid.Children.OfType<TerminalView>().FirstOrDefault() is { } terminal)
+                    terminal.FocusTerminal();
+            });
+        }
+
+        private void MainPage_PointerReleased(object sender, PointerRoutedEventArgs e)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot).Count > 0)
+                    return;
+                var focused = FocusManager.GetFocusedElement(XamlRoot);
+                if (focused is TextBox or PasswordBox or RichEditBox or AutoSuggestBox or ComboBox or NumberBox)
+                    return;
+                RestoreTerminalFocus();
+            });
         }
 
         /// <summary>
@@ -1303,7 +1506,11 @@ namespace SwellSSH.Pages
                 Message = $"{profile.Username}@{profile.Host}:{profile.Port}"
             };
 
-            var tabContent = new Grid { Padding = new Thickness(4, 0, 4, 0) };
+            var tabContent = new Grid
+            {
+                Padding = new Thickness(4, 0, 4, 0),
+                Background = GetTerminalBackgroundBrush(settings)
+            };
             tabContent.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             tabContent.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             Grid.SetRow(terminalView, 0);
@@ -1413,6 +1620,7 @@ namespace SwellSSH.Pages
             TerminalTabView.TabItems.Add(tab);
             TerminalTabView.SelectedItem = tab;
             UpdateEmptyState();
+            RestoreTerminalFocus();
         }
 
         // ── Host Key dialogs ─────────────────────────────────────────────────────────────────

@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Text;
@@ -7,6 +9,7 @@ using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using SwellSSH.Services;
 using Windows.UI;
 
 namespace SwellSSH.Terminal
@@ -23,10 +26,34 @@ namespace SwellSSH.Terminal
         private (int x, int y)? _selectionStart;
         private (int x, int y)? _selectionEnd;
         private bool _isSelecting;
-        private bool _isLoaded;
-        private bool _needsRedraw;
-        private bool _isDrawing;
+        private volatile bool _isLoaded;
+        private char? _pendingHighSurrogate;
+        private int _needsRedraw;
+        private int _redrawScheduled;
+        private int _redrawGeneration;
         private bool _hasConnected; // true after the first real-size connection
+        private RowRenderCache[] _rowCache = Array.Empty<RowRenderCache>();
+        private TerminalRow?[] _visibleRows = Array.Empty<TerminalRow?>();
+        private long[] _visibleVersions = Array.Empty<long>();
+        private int _rowRenderGeneration;
+
+        private sealed class RowRenderCache : IDisposable
+        {
+            public TerminalRow? Source;
+            public long Version = -1;
+            public int Columns;
+            public int SelectionKey;
+            public int Generation;
+            public CanvasCommandList? Commands;
+
+            public void Dispose()
+            {
+                Commands?.Dispose();
+                Commands = null;
+                Source = null;
+                Version = -1;
+            }
+        }
 
         // Colors
         private Color _defaultBg = Color.FromArgb(255, 12, 12, 12);
@@ -342,9 +369,21 @@ namespace SwellSSH.Terminal
         public void ApplySettings(Models.TerminalSettings settings)
         {
             _settings = settings;
+            InvalidateRowCache();
             
-            // Apply color scheme simple mapping
-            if (settings.ColorScheme == "Default Light")
+            // JSON themes are the source of truth. The legacy mappings below remain
+            // as a safe fallback for an invalid/missing configuration file.
+            var configuredTheme = TerminalThemeService.Instance.Find(settings.ColorScheme);
+            if (configuredTheme != null)
+            {
+                _defaultBg = TerminalThemeService.ParseColor(configuredTheme.Background, _defaultBg);
+                _defaultFg = TerminalThemeService.ParseColor(configuredTheme.Foreground, _defaultFg);
+                _selectionBg = TerminalThemeService.ParseColor(configuredTheme.SelectionBackground, _selectionBg);
+                _cursorColor = TerminalThemeService.ParseColor(configuredTheme.CursorColor, _defaultFg);
+                _ansiColors = configuredTheme.AnsiColors
+                    .Select(c => TerminalThemeService.ParseColor(c, _defaultFg)).ToArray();
+            }
+            else if (settings.ColorScheme == "Default Light")
             {
                 _defaultBg = Color.FromArgb(255, 250, 250, 250);
                 _defaultFg = Color.FromArgb(255, 50, 50, 50);
@@ -607,24 +646,41 @@ else if (settings.ColorScheme == "Termark Light")
         private void RequestRedraw()
         {
             if (!_isLoaded) return;
-            
-            _needsRedraw = true;
-            
-            // Debounce rendering to ~60FPS
-            if (!_isDrawing)
+
+            Interlocked.Exchange(ref _needsRedraw, 1);
+            if (Interlocked.CompareExchange(ref _redrawScheduled, 1, 0) != 0) return;
+            int generation = Volatile.Read(ref _redrawGeneration);
+
+            if (!DispatcherQueue.TryEnqueue(async () =>
             {
-                _isDrawing = true;
-                DispatcherQueue.TryEnqueue(async () =>
+                do
                 {
                     await Task.Delay(16); // ~1 frame at 60hz
-                    if (_needsRedraw && Canvas != null && Canvas.ReadyToDraw)
+                    if (generation != Volatile.Read(ref _redrawGeneration)) return;
+                    if (Interlocked.Exchange(ref _needsRedraw, 0) != 0 &&
+                        _isLoaded && Canvas != null && Canvas.ReadyToDraw)
                     {
-                        _needsRedraw = false;
                         Canvas.Invalidate();
                     }
-                    _isDrawing = false;
-                });
+                }
+                while (Volatile.Read(ref _needsRedraw) != 0 && _isLoaded &&
+                       generation == Volatile.Read(ref _redrawGeneration));
+
+                if (generation != Volatile.Read(ref _redrawGeneration)) return;
+                Interlocked.Exchange(ref _redrawScheduled, 0);
+                if (Volatile.Read(ref _needsRedraw) != 0 && _isLoaded)
+                    RequestRedraw();
+            }))
+            {
+                Interlocked.Exchange(ref _redrawScheduled, 0);
             }
+        }
+
+        public void FocusTerminal()
+        {
+            if (!_isLoaded) return;
+            Focus(FocusState.Programmatic);
+            RequestRedraw();
         }
 
         // ── Win2D Lifecycle & Measuring ───────────────────────────────────────
@@ -644,11 +700,11 @@ else if (settings.ColorScheme == "Termark Light")
         private void UserControl_Unloaded(object sender, RoutedEventArgs e)
         {
             _isLoaded = false;
-            // 重置绘制状态标志，防止 NavigationCacheMode 下从设置页返回时
-            // 遗留的异步 debounce lambda 使 _isDrawing 永久为 true，
-            // 导致 RequestRedraw 无法启动新的绘制循环（界面冻结）。
-            _isDrawing = false;
-            _needsRedraw = false;
+            // Invalidate delayed callbacks from the previous load generation so
+            // they cannot interfere with the scheduling state after navigation.
+            Interlocked.Increment(ref _redrawGeneration);
+            Interlocked.Exchange(ref _redrawScheduled, 0);
+            Interlocked.Exchange(ref _needsRedraw, 0);
             if (_session != null)
             {
                 _session.Buffer.BufferChanged -= RequestRedraw;
@@ -658,6 +714,7 @@ else if (settings.ColorScheme == "Termark Light")
 
         public void Dispose()
         {
+            DisposeRowCache();
             if (Canvas != null)
             {
                 Canvas.RemoveFromVisualTree();
@@ -684,6 +741,7 @@ else if (settings.ColorScheme == "Termark Light")
                 HorizontalAlignment = CanvasHorizontalAlignment.Left,
                 VerticalAlignment = CanvasVerticalAlignment.Top
             };
+            InvalidateRowCache();
 
             // Apply solid background color from the selected terminal theme.
             // This isolates the terminal from app-level dark/light mode changes.
@@ -738,12 +796,14 @@ else if (settings.ColorScheme == "Termark Light")
             int cols = Math.Max(10, (int)(width / _charWidth));
             int rows = Math.Max(3,  (int)(height / _charHeight));
 
-            bool wasConnected = _session.State == TerminalSession.SessionState.Connected;
             bool sizeChanged  = cols != _session.Buffer.Cols || rows != _session.Buffer.Rows;
 
-            _session.Buffer.Resize(cols, rows);
-            _session.PtyBridge.SetSize(cols, rows, _session.Transport);
-            RequestRedraw();
+            if (sizeChanged)
+            {
+                _session.Buffer.Resize(cols, rows);
+                _session.PtyBridge.SetSize(cols, rows, _session.Transport);
+                RequestRedraw();
+            }
 
         }
 
@@ -778,43 +838,238 @@ else if (settings.ColorScheme == "Termark Light")
         {
             if (_session == null || _textFormat == null) return;
 
-            var ds = args.DrawingSession;
             var buffer = _session.Buffer;
+            int rows;
+            int cols;
+            int cursorX;
+            int cursorY;
+            TerminalCell cursorCell = default;
+            TerminalRow?[] sources;
+            long[] versions;
 
             lock (buffer.SyncRoot)
             {
-                int rows = buffer.Rows;
-                int cols = buffer.Cols;
-                
+                rows = buffer.Rows;
+                cols = buffer.Cols;
+                cursorX = buffer.CursorX;
+                cursorY = buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset;
+                if (_visibleRows.Length != rows)
+                {
+                    _visibleRows = new TerminalRow?[rows];
+                    _visibleVersions = new long[rows];
+                }
+                sources = _visibleRows;
+                versions = _visibleVersions;
+
                 int totalLines = buffer.Scrollback.Count + buffer.Lines.Count;
                 int startLineIndex = Math.Max(0, totalLines - rows - _scrollOffset);
+                for (int y = 0; y < rows; y++)
+                {
+                    int absoluteY = startLineIndex + y;
+                    TerminalRow? row = absoluteY < buffer.Scrollback.Count
+                        ? buffer.Scrollback[absoluteY]
+                        : absoluteY - buffer.Scrollback.Count < buffer.Lines.Count
+                            ? buffer.Lines[absoluteY - buffer.Scrollback.Count]
+                            : null;
+                    sources[y] = row;
+                    versions[y] = row?.Version ?? -1;
+                }
 
-                StringBuilder textChunk = new StringBuilder(cols);
+                if ((uint)cursorY < (uint)rows && (uint)cursorX < (uint)cols)
+                {
+                    var cursorRow = sources[cursorY];
+                    if (cursorRow != null && cursorX < cursorRow.Cells.Length)
+                        cursorCell = cursorRow.Cells[cursorX];
+                }
+            }
 
+            EnsureRowCache(rows);
+            int selectionKey = HashCode.Combine(_selectionStart, _selectionEnd);
+            for (int y = 0; y < rows; y++)
+            {
+                RowRenderCache cache = _rowCache[y];
+                TerminalRow? source = sources[y];
+                bool isLiveCursorRow = _scrollOffset == 0 && y == cursorY;
+                if (isLiveCursorRow || !ReferenceEquals(cache.Source, source) || cache.Version != versions[y] ||
+                    cache.Columns != cols || cache.SelectionKey != selectionKey ||
+                    cache.Generation != _rowRenderGeneration || cache.Commands == null)
+                {
+                    TerminalCell[] cells = ArrayPool<TerminalCell>.Shared.Rent(cols);
+                    try
+                    {
+                        var empty = new TerminalCell { Char = ' ', FgColor = TerminalCell.DefaultFg, BgColor = TerminalCell.DefaultBg };
+                        Array.Fill(cells, empty, 0, cols);
+                        if (source != null)
+                        {
+                            lock (buffer.SyncRoot)
+                            {
+                                Array.Copy(source.Cells, 0, cells, 0, Math.Min(cols, source.Cells.Length));
+                                versions[y] = source.Version;
+                            }
+                        }
+
+                        var commands = new CanvasCommandList(sender);
+                        using (CanvasDrawingSession rowDrawing = commands.CreateDrawingSession())
+                            DrawCachedRow(rowDrawing, cells, cols, y);
+
+                        cache.Commands?.Dispose();
+                        cache.Commands = commands;
+                        cache.Source = source;
+                        cache.Version = versions[y];
+                        cache.Columns = cols;
+                        cache.SelectionKey = selectionKey;
+                        cache.Generation = _rowRenderGeneration;
+                    }
+                    finally
+                    {
+                        ArrayPool<TerminalCell>.Shared.Return(cells);
+                    }
+                }
+
+                if (cache.Commands != null)
+                    args.DrawingSession.DrawImage(cache.Commands, 0, (float)(y * _charHeight));
+            }
+
+            if (_scrollOffset == 0 && (uint)cursorY < (uint)rows && (uint)cursorX < (uint)cols &&
+                FocusState != FocusState.Unfocused)
+            {
+                DrawCursor(args.DrawingSession, cursorCell, cursorX, cursorY);
+            }
+        }
+
+        private void DrawCachedRow(CanvasDrawingSession ds, TerminalCell[] cells, int cols, int selectionY)
+        {
+            var textChunk = new StringBuilder(cols);
+            int startX = 0;
+            TerminalCell currentAttr = cells[0];
+            int logicalWidth = 0;
+
+            for (int x = 0; x < cols; x++)
+            {
+                TerminalCell cell = cells[x];
+                if (IsCellSelected(x, selectionY + _scrollOffset))
+                    cell.BgColor = TerminalCell.SelectionBgMask;
+
+                if (cell.FgColor != currentAttr.FgColor || cell.BgColor != currentAttr.BgColor ||
+                    cell.IsBold != currentAttr.IsBold || cell.IsItalic != currentAttr.IsItalic ||
+                    cell.IsUnderline != currentAttr.IsUnderline)
+                {
+                    DrawChunk(ds, textChunk.ToString(), startX, 0, currentAttr, logicalWidth);
+                    textChunk.Clear();
+                    startX = x;
+                    logicalWidth = 0;
+                    currentAttr = cell;
+                }
+
+                if (cell.Char != '\0') textChunk.Append(cell.Char == 0 ? ' ' : cell.Char);
+                logicalWidth++;
+            }
+
+            if (logicalWidth > 0)
+                DrawChunk(ds, textChunk.ToString(), startX, 0, currentAttr, logicalWidth);
+        }
+
+        private void DrawCursor(CanvasDrawingSession ds, TerminalCell cell, int x, int y)
+        {
+            string text = cell.Char is '\0' or (char)0 ? " " : cell.Char.ToString();
+            if (_settings.CursorStyle == "Underline")
+            {
+                DrawChunk(ds, text, x, y, cell, 1);
+                ds.DrawLine((float)(x * _charWidth), (float)((y + 1) * _charHeight - 1),
+                    (float)((x + 1) * _charWidth), (float)((y + 1) * _charHeight - 1), _cursorColor, 2);
+            }
+            else if (_settings.CursorStyle == "Bar")
+            {
+                DrawChunk(ds, text, x, y, cell, 1);
+                ds.DrawLine((float)(x * _charWidth + 1), (float)(y * _charHeight),
+                    (float)(x * _charWidth + 1), (float)((y + 1) * _charHeight), _cursorColor, 2);
+            }
+            else
+            {
+                ds.FillRectangle((float)(x * _charWidth), (float)(y * _charHeight),
+                    (float)_charWidth, (float)_charHeight, _cursorColor);
+                Color inverted = Color.FromArgb(_cursorColor.A, _defaultBg.R, _defaultBg.G, _defaultBg.B);
+                ds.DrawText(text, (float)(x * _charWidth), (float)(y * _charHeight), inverted, _textFormat);
+            }
+        }
+
+        private void EnsureRowCache(int rows)
+        {
+            if (_rowCache.Length == rows) return;
+            foreach (RowRenderCache cache in _rowCache) cache?.Dispose();
+            _rowCache = new RowRenderCache[rows];
+            for (int i = 0; i < rows; i++) _rowCache[i] = new RowRenderCache();
+        }
+
+        private void InvalidateRowCache() => _rowRenderGeneration++;
+
+        private void DisposeRowCache()
+        {
+            foreach (RowRenderCache cache in _rowCache) cache?.Dispose();
+            _rowCache = Array.Empty<RowRenderCache>();
+            _visibleRows = Array.Empty<TerminalRow?>();
+            _visibleVersions = Array.Empty<long>();
+        }
+
+        private void Canvas_DrawLegacy(CanvasControl sender, CanvasDrawEventArgs args)
+        {
+            if (_session == null || _textFormat == null) return;
+
+            var ds = args.DrawingSession;
+            var buffer = _session.Buffer;
+            int rows;
+            int cols;
+            int cursorX;
+            int cursorY;
+            TerminalCell[] cells;
+
+            lock (buffer.SyncRoot)
+            {
+                rows = buffer.Rows;
+                cols = buffer.Cols;
+                cursorX = buffer.CursorX;
+                cursorY = buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset;
+
+                int cellCount = rows * cols;
+                cells = ArrayPool<TerminalCell>.Shared.Rent(cellCount);
+                var emptyCell = new TerminalCell
+                {
+                    Char = ' ',
+                    FgColor = TerminalCell.DefaultFg,
+                    BgColor = TerminalCell.DefaultBg
+                };
+                Array.Fill(cells, emptyCell, 0, cellCount);
+
+                int totalLines = buffer.Scrollback.Count + buffer.Lines.Count;
+                int startLineIndex = Math.Max(0, totalLines - rows - _scrollOffset);
                 for (int y = 0; y < rows; y++)
                 {
                     int absY = startLineIndex + y;
                     TerminalRow? row = null;
-
                     if (absY < buffer.Scrollback.Count)
-                    {
                         row = buffer.Scrollback[absY];
-                    }
                     else if (absY - buffer.Scrollback.Count < buffer.Lines.Count)
-                    {
                         row = buffer.Lines[absY - buffer.Scrollback.Count];
-                    }
 
-                    if (row == null || row.Cells == null) continue;
+                    if (row?.Cells != null)
+                        Array.Copy(row.Cells, 0, cells, y * cols, Math.Min(cols, row.Cells.Length));
+                }
+            }
 
+            try
+            {
+                StringBuilder textChunk = new StringBuilder(cols);
+                for (int y = 0; y < rows; y++)
+                {
+                    int rowOffset = y * cols;
                     int startX = 0;
-                    TerminalCell currentAttr = row.Cells[0];
+                    TerminalCell currentAttr = cells[rowOffset];
                     textChunk.Clear();
                     int chunkLogicalWidth = 0;
 
-                    for (int x = 0; x < Math.Min(cols, row.Cells.Length); x++)
+                    for (int x = 0; x < cols; x++)
                     {
-                        var cell = row.Cells[x];
+                        var cell = cells[rowOffset + x];
 
                         if (IsCellSelected(x, y + _scrollOffset))
                         {
@@ -822,7 +1077,7 @@ else if (settings.ColorScheme == "Termark Light")
                         }
 
                         // Draw cursor background block (only if we are not scrolled up)
-                        if (x == buffer.CursorX && y == (buffer.CursorY + buffer.Rows - Math.Min(rows, buffer.Lines.Count) + _scrollOffset) && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
+                        if (x == cursorX && y == cursorY && _scrollOffset == 0 && this.FocusState != FocusState.Unfocused)
                         {
                             if (textChunk.Length > 0 || chunkLogicalWidth > 0)
                             {
@@ -859,7 +1114,7 @@ else if (settings.ColorScheme == "Termark Light")
                             }
                             
                             startX = x + 1;
-                            if (x + 1 < row.Cells.Length) currentAttr = row.Cells[x + 1];
+                            if (x + 1 < cols) currentAttr = cells[rowOffset + x + 1];
                             continue;
                         }
 
@@ -890,6 +1145,10 @@ else if (settings.ColorScheme == "Termark Light")
                     }
                 }
             }
+            finally
+            {
+                ArrayPool<TerminalCell>.Shared.Return(cells);
+            }
         }
 
         private void DrawChunk(CanvasDrawingSession ds, string text, int startX, int y, TerminalCell attr, int logicalWidth)
@@ -904,7 +1163,7 @@ else if (settings.ColorScheme == "Termark Light")
 
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            Color fg = ParseColor(attr.FgColor, _defaultFg);
+            Color fg = EnsureReadableTextColor(ParseColor(attr.FgColor, _defaultFg), bg);
             
             // Temp bold implementation: use standard text format but draw twice slightly offset
             // Real bold needs font weight changes, but caching formats is complex for Phase 4
@@ -923,10 +1182,75 @@ else if (settings.ColorScheme == "Termark Light")
             {
                 int idx = (int)(c & 0xFF);
                 if (idx >= 0 && idx < 16) return _ansiColors[idx];
-                // Simplify 256 colors: fallback to grey for index 16-255 if not matched above
-                return Color.FromArgb(255, 136, 136, 136); 
+                return ParseXterm256Color(idx);
             }
             return Color.FromArgb(255, (byte)((c >> 16) & 0xFF), (byte)((c >> 8) & 0xFF), (byte)(c & 0xFF));
+        }
+
+        private static Color ParseXterm256Color(int index)
+        {
+            // 16-231: 6x6x6 RGB cube. 232-255: 24-step grayscale ramp.
+            if (index is >= 16 and <= 231)
+            {
+                int value = index - 16;
+                int red = value / 36;
+                int green = value / 6 % 6;
+                int blue = value % 6;
+                return Color.FromArgb(255, XtermCubeChannel(red), XtermCubeChannel(green), XtermCubeChannel(blue));
+            }
+            if (index is >= 232 and <= 255)
+            {
+                byte gray = (byte)(8 + (index - 232) * 10);
+                return Color.FromArgb(255, gray, gray, gray);
+            }
+            return Color.FromArgb(255, 136, 136, 136);
+        }
+
+        private static byte XtermCubeChannel(int component) =>
+            component == 0 ? (byte)0 : (byte)(55 + component * 40);
+
+        /// <summary>
+        /// Keeps ANSI colors recognizable while preventing dark blue/grey text from
+        /// disappearing into dark themes (and pale colors into light themes).
+        /// </summary>
+        private static Color EnsureReadableTextColor(Color foreground, Color background)
+        {
+            const double minimumContrast = 4.5;
+            if (ContrastRatio(foreground, background) >= minimumContrast)
+                return foreground;
+
+            bool lighten = RelativeLuminance(background) < 0.5;
+            Color adjusted = foreground;
+            for (int amount = 12; amount <= 192; amount += 12)
+            {
+                adjusted = Color.FromArgb(foreground.A,
+                    BlendChannel(foreground.R, lighten ? (byte)255 : (byte)0, amount),
+                    BlendChannel(foreground.G, lighten ? (byte)255 : (byte)0, amount),
+                    BlendChannel(foreground.B, lighten ? (byte)255 : (byte)0, amount));
+                if (ContrastRatio(adjusted, background) >= minimumContrast)
+                    return adjusted;
+            }
+            return adjusted;
+        }
+
+        private static byte BlendChannel(byte source, byte target, int amount) =>
+            (byte)(source + (target - source) * amount / 255);
+
+        private static double ContrastRatio(Color first, Color second)
+        {
+            double lighter = Math.Max(RelativeLuminance(first), RelativeLuminance(second));
+            double darker = Math.Min(RelativeLuminance(first), RelativeLuminance(second));
+            return (lighter + 0.05) / (darker + 0.05);
+        }
+
+        private static double RelativeLuminance(Color color)
+        {
+            static double Linear(byte channel)
+            {
+                double value = channel / 255.0;
+                return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
+            }
+            return 0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
         }
 
         // ── Input Handling ────────────────────────────────────────────────────
@@ -1102,6 +1426,13 @@ else if (settings.ColorScheme == "Termark Light")
                     if (ctrl) seq = new byte[] { 3 }; // Ctrl+C
                     else handled = false;
                     break;
+                case Windows.System.VirtualKey.V:
+                    if (ctrl)
+                    {
+                        _ = PasteFromClipboard();
+                    }
+                    else handled = false;
+                    break;
                 case Windows.System.VirtualKey.D:
                     if (ctrl) seq = new byte[] { 4 }; // Ctrl+D
                     else handled = false;
@@ -1138,12 +1469,39 @@ else if (settings.ColorScheme == "Termark Light")
         {
             if (_session == null || !_session.Transport.IsConnected) return;
 
-            // Ignore ASCII control characters that are handled by OnKeyDown (e.g. Enter, Backspace)
-            if (args.Character < 32 && args.Character != 9 && args.Character != 10 && args.Character != 13) return;
+            // Control characters are already handled by OnKeyDown. This prevents
+            // Enter and Tab from being sent twice on WinUI event paths that raise both.
+            if (args.Character < 32 || args.Character == 127)
+            {
+                args.Handled = true;
+                return;
+            }
 
-            // Handle printable characters
-            byte[] bytes = Encoding.UTF8.GetBytes(new char[] { args.Character });
-            _session.Transport.SendRaw(bytes);
+            char character = args.Character;
+            if (char.IsHighSurrogate(character))
+            {
+                _pendingHighSurrogate = character;
+                args.Handled = true;
+                return;
+            }
+
+            string text;
+            if (char.IsLowSurrogate(character) && _pendingHighSurrogate.HasValue)
+            {
+                text = new string(new[] { _pendingHighSurrogate.Value, character });
+                _pendingHighSurrogate = null;
+            }
+            else
+            {
+                if (_pendingHighSurrogate.HasValue)
+                {
+                    _session.Transport.SendInput(_pendingHighSurrogate.Value.ToString());
+                    _pendingHighSurrogate = null;
+                }
+                text = character.ToString();
+            }
+
+            _session.Transport.SendInput(text);
             args.Handled = true;
         }
 

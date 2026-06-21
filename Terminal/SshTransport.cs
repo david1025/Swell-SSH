@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Renci.SshNet;
 using Renci.SshNet.Common;
@@ -11,6 +12,8 @@ using SwellSSH.Services;
 
 namespace SwellSSH.Terminal
 {
+    public delegate void SshDataReceivedHandler(ReadOnlySpan<byte> data);
+
     /// <summary>
     /// Wraps SSH.NET's SshClient + ShellStream lifecycle.
     /// - Connects with password or private key (auto-detected)
@@ -24,7 +27,7 @@ namespace SwellSSH.Terminal
         // ── Events ────────────────────────────────────────────────────────────
 
         /// <summary>Fired on the thread-pool whenever the server sends output bytes.</summary>
-        public event Action<byte[]>? DataReceived;
+        public event SshDataReceivedHandler? DataReceived;
 
         /// <summary>Fired when the connection drops unexpectedly.</summary>
         public event Action<Exception?>? Disconnected;
@@ -44,6 +47,10 @@ namespace SwellSSH.Terminal
         private SshClient? _client;
         private ShellStream? _shell;
         private CancellationTokenSource? _readCts;
+        private Task? _readTask;
+        private CancellationTokenSource? _writeCts;
+        private Channel<byte[]>? _writeChannel;
+        private readonly object _writeSync = new();
         private int _cols = 80;
         private int _rows = 24;
 
@@ -170,37 +177,112 @@ namespace SwellSSH.Terminal
 
             // Start background read loop
             _readCts = new CancellationTokenSource();
-            _ = Task.Run(() => ReadLoopAsync(_readCts.Token));
+            StartReadLoop();
+            StartWriteLoop();
         }
 
         // ── Input ─────────────────────────────────────────────────────────────
 
         public void SendInput(string text)
         {
-            if (_shell == null || !IsConnected) return;
-            try
-            {
-                _shell.Write(text);
-                _shell.Flush();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[SSH] SendInput error: {ex.Message}");
-            }
+            if (string.IsNullOrEmpty(text)) return;
+            EnqueueInput(Encoding.UTF8.GetBytes(text));
         }
 
         public void SendRaw(byte[] data)
         {
-            if (_shell == null || !IsConnected) return;
+            if (data == null || data.Length == 0) return;
+            EnqueueInput(data);
+        }
+
+        private void EnqueueInput(byte[] data)
+        {
+            if (!IsConnected) return;
+            byte[] owned = data.ToArray();
+            lock (_writeSync)
+            {
+                _writeChannel?.Writer.TryWrite(owned);
+            }
+        }
+
+        private void StartWriteLoop()
+        {
+            var shell = _shell;
+            if (shell == null) return;
+
+            StopWriteLoop();
+            var channel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
+            });
+            var cts = new CancellationTokenSource();
+            lock (_writeSync)
+            {
+                _writeChannel = channel;
+                _writeCts = cts;
+            }
+            _ = Task.Run(() => WriteLoopAsync(channel.Reader, shell, cts.Token));
+        }
+
+        private async Task WriteLoopAsync(ChannelReader<byte[]> reader, ShellStream shell, CancellationToken token)
+        {
             try
             {
-                _shell.Write(data, 0, data.Length);
-                _shell.Flush();
+                while (await reader.WaitToReadAsync(token).ConfigureAwait(false))
+                {
+                    if (!reader.TryRead(out byte[]? first)) continue;
+                    await Task.Delay(1, token).ConfigureAwait(false);
+
+                    var batch = new System.Collections.Generic.List<byte[]> { first };
+                    int totalLength = first.Length;
+                    while (reader.TryRead(out byte[]? next))
+                    {
+                        batch.Add(next);
+                        totalLength += next.Length;
+                    }
+
+                    if (batch.Count == 1)
+                    {
+                        shell.Write(first, 0, first.Length);
+                    }
+                    else
+                    {
+                        byte[] combined = new byte[totalLength];
+                        int offset = 0;
+                        foreach (byte[] item in batch)
+                        {
+                            Buffer.BlockCopy(item, 0, combined, offset, item.Length);
+                            offset += item.Length;
+                        }
+                        shell.Write(combined, 0, combined.Length);
+                    }
+                    shell.Flush();
+                }
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"[SSH] SendRaw error: {ex.Message}");
+                if (!token.IsCancellationRequested)
+                    System.Diagnostics.Debug.WriteLine($"[SSH] WriteLoop error: {ex.Message}");
             }
+        }
+
+        private void StopWriteLoop()
+        {
+            CancellationTokenSource? cts;
+            Channel<byte[]>? channel;
+            lock (_writeSync)
+            {
+                cts = _writeCts;
+                channel = _writeChannel;
+                _writeCts = null;
+                _writeChannel = null;
+            }
+            channel?.Writer.TryComplete();
+            cts?.Cancel();
+            cts?.Dispose();
         }
 
         // ── Resize ────────────────────────────────────────────────────────────
@@ -240,33 +322,31 @@ namespace SwellSSH.Terminal
         /// Reads raw bytes from ShellStream continuously and fires DataReceived.
         /// IMPORTANT: must run continuously to prevent SSH pipe buffer from filling up.
         /// </summary>
-        private async Task ReadLoopAsync(CancellationToken token)
+        private void StartReadLoop()
         {
-            var buffer = new byte[4096];
+            var cts = _readCts;
+            if (cts == null) return;
+            _readTask = Task.Factory.StartNew(
+                () => ReadLoop(cts.Token), cts.Token,
+                TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }
+
+        private void ReadLoop(CancellationToken token)
+        {
+            var buffer = new byte[16 * 1024];
             while (!token.IsCancellationRequested)
             {
                 try
                 {
                     if (_shell == null) break;
 
-                    int bytesRead = 0;
+                    int bytesRead;
                     // ShellStream.Read blocks until data is available (or stream closes)
-                    await Task.Run(() =>
-                    {
-                        try { bytesRead = _shell.Read(buffer, 0, buffer.Length); }
-                        catch { bytesRead = -1; }
-                    }, token);
+                    try { bytesRead = _shell.Read(buffer, 0, buffer.Length); }
+                    catch { bytesRead = -1; }
 
-                    if (bytesRead < 0) break;   // stream closed
-                    if (bytesRead == 0)          // no data yet — small yield
-                    {
-                        await Task.Delay(10, token);
-                        continue;
-                    }
-
-                    var chunk = new byte[bytesRead];
-                    Buffer.BlockCopy(buffer, 0, chunk, 0, bytesRead);
-                    DataReceived?.Invoke(chunk);
+                    if (bytesRead <= 0) break;  // stream closed
+                    DataReceived?.Invoke(buffer.AsSpan(0, bytesRead));
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)
@@ -304,12 +384,15 @@ namespace SwellSSH.Terminal
                 try
                 {
                     if (Profile == null) return;
+                    _readCts?.Cancel();
+                    _readCts?.Dispose();
                     DisposeShell();
                     _client?.Connect();
                     _shell = _client!.CreateShellStream("xterm-256color",
                         (uint)_cols, (uint)_rows, 0, 0, 4096);
                     _readCts = new CancellationTokenSource();
-                    _ = Task.Run(() => ReadLoopAsync(_readCts.Token));
+                    StartReadLoop();
+                    StartWriteLoop();
                     
                     string successMsg = $"\r\n\x1b[32m[SSH] Reconnected successfully.\x1b[0m\r\n";
                     DataReceived?.Invoke(System.Text.Encoding.UTF8.GetBytes(successMsg));
@@ -370,12 +453,14 @@ namespace SwellSSH.Terminal
         public void Disconnect()
         {
             _readCts?.Cancel();
+            StopWriteLoop();
             DisposeShell();
             try { _client?.Disconnect(); } catch { }
         }
 
         private void DisposeShell()
         {
+            StopWriteLoop();
             try { _shell?.Dispose(); } catch { }
             _shell = null;
         }
